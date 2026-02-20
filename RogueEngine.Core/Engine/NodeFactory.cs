@@ -1317,5 +1317,250 @@ public static class NodeFactory
                 ("First", PortDataType.Entity),
             ],
         };
+
+        // ── Map & Procgen: Custom Rooms ────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.DefineCustomRoom,
+            Title = "Define Custom Room",
+            Description = "Registers a named room template using a multiline layout string ('#' = wall, '.' = floor, space = transparent). Call this before PlaceCustomRoom.",
+            Category = "Map & Procgen",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties =
+            {
+                ["Name"]   = "room1",
+                ["Layout"] = "###\n#.#\n###",
+            },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.PlaceCustomRoom,
+            Title = "Place Custom Room",
+            Description = "Stamps a previously registered custom room template onto a Map at (X, Y).",
+            Category = "Map & Procgen",
+            InputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("Map",  PortDataType.Map),
+                ("X",    PortDataType.Int),
+                ("Y",    PortDataType.Int),
+            ],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Map", PortDataType.Map)],
+            DefaultProperties = { ["RoomName"] = "room1" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.CustomProcgenStart,
+            Title = "Custom Procgen Start",
+            Description = "Entry-point node for a custom procgen method graph. Provides the Map to fill and a Seed for reproducibility. Use this instead of Start when the graph defines a custom generation algorithm.",
+            Category = "Map & Procgen",
+            OutputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("Map",  PortDataType.Map),
+                ("Seed", PortDataType.Int),
+            ],
+        };
+
+        // ── Battle System ──────────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.RollDice,
+            Title = "Roll Dice",
+            Description = "Rolls Count dice with Sides faces each and outputs the total. E.g. Count=2, Sides=6 rolls 2d6.",
+            Category = "Battle",
+            InputPorts =
+            [
+                ("Count", PortDataType.Int),
+                ("Sides", PortDataType.Int),
+            ],
+            OutputPorts = [("Result", PortDataType.Int)],
+            DefaultProperties = { ["Count"] = "1", ["Sides"] = "6" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.ApplyDamage,
+            Title = "Apply Damage",
+            Description = "Subtracts Amount from the entity's HP stat (clamped at 0). Outputs the new HP and whether the entity is now dead.",
+            Category = "Battle",
+            InputPorts =
+            [
+                ("Exec",   PortDataType.Exec),
+                ("Entity", PortDataType.Entity),
+                ("Amount", PortDataType.Float),
+            ],
+            OutputPorts =
+            [
+                ("Exec",   PortDataType.Exec),
+                ("NewHP",  PortDataType.Float),
+                ("IsDead", PortDataType.Bool),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.HealEntity,
+            Title = "Heal Entity",
+            Description = "Adds Amount to the entity's HP stat, capped at MaxHP. Outputs the new HP value.",
+            Category = "Battle",
+            InputPorts =
+            [
+                ("Exec",   PortDataType.Exec),
+                ("Entity", PortDataType.Entity),
+                ("Amount", PortDataType.Float),
+            ],
+            OutputPorts =
+            [
+                ("Exec",  PortDataType.Exec),
+                ("NewHP", PortDataType.Float),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.IsEntityDead,
+            Title = "Is Entity Dead",
+            Description = "Outputs true when the entity's HP stat is 0 or below.",
+            Category = "Battle",
+            InputPorts = [("Entity", PortDataType.Entity)],
+            OutputPorts = [("IsDead", PortDataType.Bool)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.StartCombat,
+            Title = "Start Combat",
+            Description = "Signals the beginning of a turn-based combat encounter and resets internal turn-order state.",
+            Category = "Battle",
+            InputPorts  = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.EndTurn,
+            Title = "End Turn",
+            Description = "Signals that the current combatant's turn is finished and advances to the next entity in turn order.",
+            Category = "Battle",
+            InputPorts  = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetInitiative,
+            Title = "Get Initiative",
+            Description = "Rolls 1d20 + Modifier for an entity and outputs the initiative result.",
+            Category = "Battle",
+            InputPorts = [("Entity", PortDataType.Entity)],
+            OutputPorts = [("Initiative", PortDataType.Int)],
+            DefaultProperties = { ["Modifier"] = "0" },
+        };
+
+        // ── RPG System ─────────────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.AddExperience,
+            Title = "Add Experience",
+            Description = "Adds Amount to the entity's XP stat and checks whether the entity levelled up. XPToNextLevel sets the threshold per level.",
+            Category = "RPG",
+            InputPorts =
+            [
+                ("Exec",   PortDataType.Exec),
+                ("Entity", PortDataType.Entity),
+                ("Amount", PortDataType.Float),
+            ],
+            OutputPorts =
+            [
+                ("Exec",      PortDataType.Exec),
+                ("NewXP",     PortDataType.Float),
+                ("LeveledUp", PortDataType.Bool),
+            ],
+            DefaultProperties = { ["XPToNextLevel"] = "100" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetLevel,
+            Title = "Get Level",
+            Description = "Reads the entity's Level stat and outputs it as an integer.",
+            Category = "RPG",
+            InputPorts  = [("Entity", PortDataType.Entity)],
+            OutputPorts = [("Level",  PortDataType.Int)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.AddToInventory,
+            Title = "Add To Inventory",
+            Description = "Appends ItemName to the entity's inventory list (stored as a comma-separated string in the Inventory property).",
+            Category = "RPG",
+            InputPorts =
+            [
+                ("Exec",     PortDataType.Exec),
+                ("Entity",   PortDataType.Entity),
+                ("ItemName", PortDataType.String),
+            ],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.RemoveFromInventory,
+            Title = "Remove From Inventory",
+            Description = "Removes the item at the given Index from the entity's inventory and outputs its name.",
+            Category = "RPG",
+            InputPorts =
+            [
+                ("Exec",   PortDataType.Exec),
+                ("Entity", PortDataType.Entity),
+                ("Index",  PortDataType.Int),
+            ],
+            OutputPorts =
+            [
+                ("Exec",     PortDataType.Exec),
+                ("ItemName", PortDataType.String),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetInventoryItem,
+            Title = "Get Inventory Item",
+            Description = "Outputs the name of the item at the given Index in the entity's inventory.",
+            Category = "RPG",
+            InputPorts =
+            [
+                ("Entity", PortDataType.Entity),
+                ("Index",  PortDataType.Int),
+            ],
+            OutputPorts = [("ItemName", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetInventorySize,
+            Title = "Get Inventory Size",
+            Description = "Outputs the number of items currently in the entity's inventory.",
+            Category = "RPG",
+            InputPorts  = [("Entity", PortDataType.Entity)],
+            OutputPorts = [("Count",  PortDataType.Int)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.EquipItem,
+            Title = "Equip Item",
+            Description = "Moves ItemName from the entity's inventory into the named equipment Slot (e.g. 'weapon', 'armour'). The previous occupant is returned to inventory.",
+            Category = "RPG",
+            InputPorts =
+            [
+                ("Exec",     PortDataType.Exec),
+                ("Entity",   PortDataType.Entity),
+                ("ItemName", PortDataType.String),
+            ],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Slot"] = "weapon" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetEquippedItem,
+            Title = "Get Equipped Item",
+            Description = "Outputs the name of the item currently held in the named equipment Slot, or an empty string if the slot is empty.",
+            Category = "RPG",
+            InputPorts  = [("Entity", PortDataType.Entity)],
+            OutputPorts = [("ItemName", PortDataType.String)],
+            DefaultProperties = { ["Slot"] = "weapon" },
+        };
     }
 }

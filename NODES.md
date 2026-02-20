@@ -1,6 +1,6 @@
 # RogueEngine — Visual Scripting Node Reference
 
-> **111 nodes** across **16 categories.**  
+> **129 nodes** across **20 categories.**  
 > Every node listed here can be dragged from the palette onto the script canvas and wired together without writing code.  
 > Port types: `Exec` (execution flow) · `Int` · `Float` · `String` · `Bool` · `Any` · `Map` · `Cell` · `Entity` · `Location` · `Overworld` · `Session` · `SceneNode`
 
@@ -11,7 +11,7 @@
 1. [Variables (4)](#1-variables)
 2. [Math & Logic (9)](#2-math--logic)
 3. [Control Flow (4)](#3-control-flow)
-4. [Map & Procgen (7)](#4-map--procgen)
+4. [Map & Procgen (10)](#4-map--procgen)
 5. [Entity (3)](#5-entity)
 6. [ASCII Display (4)](#6-ascii-display)
 7. [Menus (3)](#7-menus)
@@ -26,6 +26,8 @@
 16. [Sprites (6)](#16-sprites)
 17. [Morgue (2)](#17-morgue)
 18. [Advanced (1)](#18-advanced)
+19. [Battle (7)](#19-battle)
+20. [RPG (8)](#20-rpg)
 
 ---
 
@@ -88,6 +90,21 @@ Nodes for creating, filling, and querying ASCII maps.
 | **Fill Region** | `FillRegion` | `Exec`, `Map`, `X/Y: Int`, `Width/Height: Int` | `Exec` | `Char`, `FgColor`, `BgColor` |
 | **Get Cell** | `GetCell` | `Map`, `X: Int`, `Y: Int` | `Cell` | Read a single cell |
 | **Set Cell** | `SetCell` | `Exec`, `Map`, `X/Y: Int`, `Cell` | `Exec` | Write a single cell |
+| **Define Custom Room** | `DefineCustomRoom` | `Exec` | `Exec` | `Name=room1`, `Layout=###\n#.#\n###` — registers a named template (`#` wall, `.` floor, space = transparent) |
+| **Place Custom Room** | `PlaceCustomRoom` | `Exec`, `Map`, `X: Int`, `Y: Int` | `Exec`, `Map` | `RoomName=room1` — stamps a registered template onto the map |
+| **Custom Procgen Start** | `CustomProcgenStart` | — | `Exec`, `Map`, `Seed: Int` | Entry point for a custom procgen graph; use instead of **Start** |
+
+### Custom room workflow
+
+1. Add a **Define Custom Room** node and set `Name` + `Layout`.  
+2. After generating the base map (BSP / Cave / etc.), add **Place Custom Room** with the matching `RoomName` and an `X` / `Y` position.
+
+### Custom procgen method workflow
+
+1. Create a new script graph (e.g. *"my_dungeon"*).  
+2. Place **Custom Procgen Start** as the entry point — it outputs the `Map` to fill and an integer `Seed`.  
+3. Wire up any combination of generation nodes (Fill Region, Define Custom Room, Place Custom Room, etc.).  
+4. In **Generate Location**, set `Algorithm=Custom` and `ProcgenGraph=my_dungeon`.
 
 ---
 
@@ -317,6 +334,43 @@ Typical wiring: **On Player Death → Generate Morgue File → (optional) Show D
 
 ---
 
+## 19. Battle
+
+Nodes for building turn-based and real-time combat systems.
+
+| Title | Enum key | Inputs | Outputs | Key properties |
+|---|---|---|---|---|
+| **Roll Dice** | `RollDice` | `Count: Int`, `Sides: Int` | `Result: Int` | `Count=1`, `Sides=6`; e.g. 2d6 |
+| **Apply Damage** | `ApplyDamage` | `Exec`, `Entity`, `Amount: Float` | `Exec`, `NewHP: Float`, `IsDead: Bool` | Reduces entity `HP` stat, clamped at 0 |
+| **Heal Entity** | `HealEntity` | `Exec`, `Entity`, `Amount: Float` | `Exec`, `NewHP: Float` | Increases `HP`, capped at `MaxHP` |
+| **Is Entity Dead** | `IsEntityDead` | `Entity` | `IsDead: Bool` | True when `HP` ≤ 0 |
+| **Start Combat** | `StartCombat` | `Exec` | `Exec` | Resets turn-order state |
+| **End Turn** | `EndTurn` | `Exec` | `Exec` | Advances to the next combatant |
+| **Get Initiative** | `GetInitiative` | `Entity` | `Initiative: Int` | `Modifier=0`; rolls 1d20 + Modifier |
+
+Typical combat loop: **Start Combat → Get Initiative → [branch on IsDead] → Apply Damage → End Turn → …**
+
+---
+
+## 20. RPG
+
+Nodes for experience, levelling, inventory, and equipment.
+
+| Title | Enum key | Inputs | Outputs | Key properties |
+|---|---|---|---|---|
+| **Add Experience** | `AddExperience` | `Exec`, `Entity`, `Amount: Float` | `Exec`, `NewXP: Float`, `LeveledUp: Bool` | `XPToNextLevel=100` |
+| **Get Level** | `GetLevel` | `Entity` | `Level: Int` | Reads `Level` stat |
+| **Add To Inventory** | `AddToInventory` | `Exec`, `Entity`, `ItemName: String` | `Exec` | Appends to comma-separated `Inventory` property |
+| **Remove From Inventory** | `RemoveFromInventory` | `Exec`, `Entity`, `Index: Int` | `Exec`, `ItemName: String` | Removes item at zero-based index |
+| **Get Inventory Item** | `GetInventoryItem` | `Entity`, `Index: Int` | `ItemName: String` | Reads item name at index |
+| **Get Inventory Size** | `GetInventorySize` | `Entity` | `Count: Int` | Number of items in inventory |
+| **Equip Item** | `EquipItem` | `Exec`, `Entity`, `ItemName: String` | `Exec` | `Slot=weapon`; moves item from inventory to `Equip_<Slot>` property |
+| **Get Equipped Item** | `GetEquippedItem` | `Entity` | `ItemName: String` | `Slot=weapon`; reads `Equip_<Slot>` property |
+
+> **Storage note:** inventory items are stored as a comma-separated string in `entity.Properties["Inventory"]`.  Equipment occupies `entity.Properties["Equip_weapon"]`, `"Equip_armour"`, etc.
+
+---
+
 ## Summary Table
 
 | Category | Node count |
@@ -324,7 +378,7 @@ Typical wiring: **On Player Death → Generate Morgue File → (optional) Show D
 | Variables | 4 |
 | Math & Logic | 9 |
 | Control Flow | 4 |
-| Map & Procgen | 7 |
+| Map & Procgen | 10 |
 | Entity | 3 |
 | ASCII Display | 4 |
 | Menus | 3 |
@@ -339,4 +393,6 @@ Typical wiring: **On Player Death → Generate Morgue File → (optional) Show D
 | Sprites | 6 |
 | Morgue | 2 |
 | Advanced | 1 |
-| **Total** | **111** |
+| Battle | 7 |
+| RPG | 8 |
+| **Total** | **129** |

@@ -729,4 +729,215 @@ public sealed class ScriptExecutorTests
         var result = new ScriptExecutor(graph).Run();
         Assert.DoesNotContain(result.Log, l => l.Contains("Unhandled node type: GetEntitiesAtTile"));
     }
+
+    // ── Custom Rooms / Custom Procgen ─────────────────────────────────────────
+
+    [Fact]
+    public void DefineCustomRoom_RegistersTemplate_NoWarnings()
+    {
+        var (graph, _, defineNode) = BuildExecChain(NodeType.DefineCustomRoom);
+        defineNode.Properties["Name"]   = "boss_room";
+        defineNode.Properties["Layout"] = "###\n#.#\n###";
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[WARN]") || l.Contains("[ERROR]"));
+    }
+
+    [Fact]
+    public void PlaceCustomRoom_AfterDefine_StampsMapCorrectly()
+    {
+        // Build: Start → CreateMap → DefineCustomRoom → PlaceCustomRoom
+        var start  = NodeFactory.Create(NodeType.Start);
+        var create = NodeFactory.Create(NodeType.CreateMap);
+        create.Properties["Width"]  = "20";
+        create.Properties["Height"] = "20";
+        var define = NodeFactory.Create(NodeType.DefineCustomRoom);
+        define.Properties["Name"]   = "r1";
+        define.Properties["Layout"] = "###\n#.#\n###";
+        var place = NodeFactory.Create(NodeType.PlaceCustomRoom);
+        place.Properties["RoomName"] = "r1";
+        var graph = BuildGraphWith(start, create, define, place);
+
+        graph.Connect(start.Id,  start.Outputs.First(p => p.Name == "Exec").Id,
+                      create.Id, create.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(create.Id, create.Outputs.First(p => p.Name == "Exec").Id,
+                      define.Id, define.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(define.Id, define.Outputs.First(p => p.Name == "Exec").Id,
+                      place.Id,  place.Inputs.First(p => p.Name == "Exec").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[ERROR]"));
+        Assert.NotNull(result.Map);
+        Assert.Equal('#', result.Map![0, 0].Character);
+        Assert.Equal('.', result.Map![1, 1].Character);
+    }
+
+    [Fact]
+    public void CustomProcgenStart_ActsAsEntryPoint()
+    {
+        // A graph that starts with CustomProcgenStart (no regular Start)
+        var procgenStart = NodeFactory.Create(NodeType.CustomProcgenStart);
+        var graph = BuildGraphWith(procgenStart);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[WARN] Graph has no Start node."));
+    }
+
+    // ── Battle System ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void RollDice_ReturnsValueInRange()
+    {
+        var rollNode = NodeFactory.Create(NodeType.RollDice);
+        rollNode.Properties["Count"] = "2";
+        rollNode.Properties["Sides"] = "6";
+        var graph = BuildGraphWith(rollNode);
+
+        var executor = new ScriptExecutor(graph, seed: 7);
+        executor.EvaluateNode(rollNode);
+        var result = rollNode.Outputs.First(p => p.Name == "Result").RuntimeValue as int? ?? 0;
+
+        // 2d6 range is [2, 12]
+        Assert.InRange(result, 2, 12);
+    }
+
+    [Fact]
+    public void ApplyDamage_ReducesHP_AndSetsIsDead()
+    {
+        var start  = NodeFactory.Create(NodeType.Start);
+        var spawn  = NodeFactory.Create(NodeType.SpawnEntity);
+        var dmgNode = NodeFactory.Create(NodeType.ApplyDamage);
+        var graph  = BuildGraphWith(start, spawn, dmgNode);
+
+        graph.Connect(start.Id, start.Outputs.First(p => p.Name == "Exec").Id,
+                      spawn.Id, spawn.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id, spawn.Outputs.First(p => p.Name == "Exec").Id,
+                      dmgNode.Id, dmgNode.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id, spawn.Outputs.First(p => p.Name == "Entity").Id,
+                      dmgNode.Id, dmgNode.Inputs.First(p => p.Name == "Entity").Id);
+        dmgNode.Properties["Amount"] = "999";
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[ERROR]"));
+        Assert.Equal("0", result.Entities[0].Properties.GetValueOrDefault("HP", "?"));
+    }
+
+    [Fact]
+    public void HealEntity_IncreasesHP_CappedAtMaxHP()
+    {
+        var start  = NodeFactory.Create(NodeType.Start);
+        var spawn  = NodeFactory.Create(NodeType.SpawnEntity);
+        var healNode = NodeFactory.Create(NodeType.HealEntity);
+        var graph  = BuildGraphWith(start, spawn, healNode);
+
+        graph.Connect(start.Id, start.Outputs.First(p => p.Name == "Exec").Id,
+                      spawn.Id, spawn.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id, spawn.Outputs.First(p => p.Name == "Exec").Id,
+                      healNode.Id, healNode.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id, spawn.Outputs.First(p => p.Name == "Entity").Id,
+                      healNode.Id, healNode.Inputs.First(p => p.Name == "Entity").Id);
+        healNode.Properties["Amount"] = "999";
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[ERROR]"));
+        var hp = float.Parse(result.Entities[0].Properties.GetValueOrDefault("HP", "0"),
+            System.Globalization.CultureInfo.InvariantCulture);
+        // HP should be capped at MaxHP (default 100)
+        Assert.Equal(100f, hp, precision: 2);
+    }
+
+    [Fact]
+    public void StartCombat_And_EndTurn_LogMessages()
+    {
+        var start      = NodeFactory.Create(NodeType.Start);
+        var combatNode = NodeFactory.Create(NodeType.StartCombat);
+        var endTurn    = NodeFactory.Create(NodeType.EndTurn);
+        var graph      = BuildGraphWith(start, combatNode, endTurn);
+
+        graph.Connect(start.Id,      start.Outputs.First(p => p.Name == "Exec").Id,
+                      combatNode.Id, combatNode.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(combatNode.Id, combatNode.Outputs.First(p => p.Name == "Exec").Id,
+                      endTurn.Id,   endTurn.Inputs.First(p => p.Name == "Exec").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.Contains(result.Log, l => l.Contains("[Battle] Combat started."));
+        Assert.Contains(result.Log, l => l.Contains("[Battle] Turn ended."));
+    }
+
+    // ── RPG System ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void AddExperience_LevelsUp_WhenThresholdMet()
+    {
+        var start   = NodeFactory.Create(NodeType.Start);
+        var spawn   = NodeFactory.Create(NodeType.SpawnEntity);
+        var addXP   = NodeFactory.Create(NodeType.AddExperience);
+        var graph   = BuildGraphWith(start, spawn, addXP);
+
+        addXP.Properties["XPToNextLevel"] = "50";
+        addXP.Properties["Amount"]        = "60";
+
+        graph.Connect(start.Id,  start.Outputs.First(p => p.Name == "Exec").Id,
+                      spawn.Id,  spawn.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id,  spawn.Outputs.First(p => p.Name == "Exec").Id,
+                      addXP.Id,  addXP.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id,  spawn.Outputs.First(p => p.Name == "Entity").Id,
+                      addXP.Id,  addXP.Inputs.First(p => p.Name == "Entity").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[ERROR]"));
+        Assert.Equal("2", result.Entities[0].Properties.GetValueOrDefault("Level", "?"));
+    }
+
+    [Fact]
+    public void Inventory_AddRemoveGet_WorksCorrectly()
+    {
+        var start  = NodeFactory.Create(NodeType.Start);
+        var spawn  = NodeFactory.Create(NodeType.SpawnEntity);
+        var addItem = NodeFactory.Create(NodeType.AddToInventory);
+        addItem.Properties["ItemName"] = "sword";
+        var graph  = BuildGraphWith(start, spawn, addItem);
+
+        graph.Connect(start.Id,   start.Outputs.First(p => p.Name == "Exec").Id,
+                      spawn.Id,   spawn.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id,   spawn.Outputs.First(p => p.Name == "Exec").Id,
+                      addItem.Id, addItem.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id,   spawn.Outputs.First(p => p.Name == "Entity").Id,
+                      addItem.Id, addItem.Inputs.First(p => p.Name == "Entity").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[ERROR]"));
+        Assert.Equal("sword", result.Entities[0].Properties.GetValueOrDefault("Inventory", ""));
+    }
+
+    [Fact]
+    public void EquipItem_MovesItemFromInventoryToSlot()
+    {
+        var start    = NodeFactory.Create(NodeType.Start);
+        var spawn    = NodeFactory.Create(NodeType.SpawnEntity);
+        var addItem  = NodeFactory.Create(NodeType.AddToInventory);
+        addItem.Properties["ItemName"] = "axe";
+        var equipNode = NodeFactory.Create(NodeType.EquipItem);
+        equipNode.Properties["Slot"]     = "weapon";
+        equipNode.Properties["ItemName"] = "axe";
+        var graph    = BuildGraphWith(start, spawn, addItem, equipNode);
+
+        graph.Connect(start.Id,    start.Outputs.First(p => p.Name == "Exec").Id,
+                      spawn.Id,    spawn.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id,    spawn.Outputs.First(p => p.Name == "Exec").Id,
+                      addItem.Id,  addItem.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(addItem.Id,  addItem.Outputs.First(p => p.Name == "Exec").Id,
+                      equipNode.Id, equipNode.Inputs.First(p => p.Name == "Exec").Id);
+        graph.Connect(spawn.Id,    spawn.Outputs.First(p => p.Name == "Entity").Id,
+                      addItem.Id,  addItem.Inputs.First(p => p.Name == "Entity").Id);
+        graph.Connect(spawn.Id,    spawn.Outputs.First(p => p.Name == "Entity").Id,
+                      equipNode.Id, equipNode.Inputs.First(p => p.Name == "Entity").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("[ERROR]"));
+        var entity = result.Entities[0];
+        Assert.Equal("axe", entity.Properties.GetValueOrDefault("Equip_weapon", ""));
+        // Should no longer be in inventory
+        Assert.DoesNotContain("axe", entity.Properties.GetValueOrDefault("Inventory", "").Split(','));
+    }
 }

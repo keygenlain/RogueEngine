@@ -333,4 +333,91 @@ public enum NodeType
     /// coordinates.  Outputs Count and the First matching entity.
     /// </summary>
     GetEntitiesAtTile,
+
+    // ── Map & Procgen: Custom Rooms ───────────────────────────────────────────
+    /// <summary>
+    /// Registers a named custom room template using a multiline layout string
+    /// where '#' is wall and '.' is floor.  Call before <see cref="PlaceCustomRoom"/>.
+    /// </summary>
+    DefineCustomRoom,
+    /// <summary>
+    /// Stamps a previously registered custom room template onto a Map at (X, Y).
+    /// </summary>
+    PlaceCustomRoom,
+    /// <summary>
+    /// Entry-point node for a custom procgen graph.  Replaces <see cref="Start"/>
+    /// when the graph is used as a procgen method.  Provides Map and Seed outputs
+    /// so the graph receives the map to fill and the deterministic seed.
+    /// </summary>
+    CustomProcgenStart,
+
+    // ── Battle System ─────────────────────────────────────────────────────────
+    /// <summary>
+    /// Rolls Count dice each with Sides faces and outputs the total.
+    /// </summary>
+    RollDice,
+    /// <summary>
+    /// Reduces an entity's "HP" stat by Amount.  Outputs the new HP value and
+    /// a flag indicating whether the entity is now dead (HP ≤ 0).
+    /// </summary>
+    ApplyDamage,
+    /// <summary>
+    /// Increases an entity's "HP" stat by Amount, capped at "MaxHP".
+    /// Outputs the new HP value.
+    /// </summary>
+    HealEntity,
+    /// <summary>
+    /// Outputs <see langword="true"/> when an entity's "HP" stat is ≤ 0.
+    /// </summary>
+    IsEntityDead,
+    /// <summary>
+    /// Signals the start of a turn-based combat encounter.
+    /// Resets internal turn-order state.
+    /// </summary>
+    StartCombat,
+    /// <summary>
+    /// Advances to the next combatant in the turn order.
+    /// </summary>
+    EndTurn,
+    /// <summary>
+    /// Rolls initiative for an entity (1d20 + Modifier) and outputs the result.
+    /// </summary>
+    GetInitiative,
+
+    // ── RPG System ────────────────────────────────────────────────────────────
+    /// <summary>
+    /// Adds XP to an entity and checks whether it has levelled up.
+    /// </summary>
+    AddExperience,
+    /// <summary>
+    /// Outputs the current level of an entity (read from the "Level" stat).
+    /// </summary>
+    GetLevel,
+    /// <summary>
+    /// Appends a named item to an entity's inventory list (stored in the
+    /// "Inventory" property as a comma-separated string).
+    /// </summary>
+    AddToInventory,
+    /// <summary>
+    /// Removes the item at the given index from an entity's inventory and
+    /// outputs the item's name.
+    /// </summary>
+    RemoveFromInventory,
+    /// <summary>
+    /// Outputs the name of the item at the given index in an entity's inventory.
+    /// </summary>
+    GetInventoryItem,
+    /// <summary>
+    /// Outputs the number of items in an entity's inventory.
+    /// </summary>
+    GetInventorySize,
+    /// <summary>
+    /// Moves an item from an entity's inventory into a named equipment slot
+    /// (stored as "Equip_&lt;Slot&gt;" in entity Properties).
+    /// </summary>
+    EquipItem,
+    /// <summary>
+    /// Outputs the name of the item currently equipped in the given slot.
+    /// </summary>
+    GetEquippedItem,
 }
