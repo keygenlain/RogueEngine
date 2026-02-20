@@ -177,6 +177,23 @@ public sealed class OverworldManager
     public string GetEntityFaction(string entityId) =>
         _entityFactions.GetValueOrDefault(entityId, string.Empty);
 
+    /// <summary>
+    /// Returns a snapshot of all faction-relation pairs as a string→string
+    /// dictionary where the key is <c>"FactionA|FactionB"</c> (canonical order)
+    /// and the value is the integer relation serialised as a string.
+    /// Used by <see cref="PersistenceManager"/> to include faction state in saves.
+    /// </summary>
+    public Dictionary<string, string> SnapshotFactionRelations() =>
+        _factionRelations.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+
+    /// <summary>
+    /// Returns a snapshot of all entity-faction assignments as a string→string
+    /// dictionary (entity-id → faction-name).
+    /// Used by <see cref="PersistenceManager"/> for JSON serialisation.
+    /// </summary>
+    public Dictionary<string, string> SnapshotEntityFactions() =>
+        new(_entityFactions);
+
     // ── Day / Night cycle ──────────────────────────────────────────────────────
 
     /// <summary>Current in-game hour (0–23).</summary>

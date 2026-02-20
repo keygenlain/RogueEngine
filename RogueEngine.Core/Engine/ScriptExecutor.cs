@@ -51,6 +51,13 @@ public sealed class ScriptExecutor
 
     // ── Sub-systems ────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// <see langword="true"/> while a cutscene started by
+    /// <see cref="NodeType.StartCutscene"/> is running.
+    /// Normal player input should be suppressed in this state.
+    /// </summary>
+    public bool IsInCutscene => _inCutscene;
+
     /// <summary>Overworld and faction/time management.</summary>
     public OverworldManager Overworld { get; }
 
@@ -724,7 +731,7 @@ public sealed class ScriptExecutor
             {
                 var slot    = node.Properties.GetValueOrDefault("Slot", "slot1");
                 var success = Persistence.Save(slot,
-                    Overworld.ActiveOverworld, _entities,
+                    Overworld, _entities,
                     Overworld.GameHour);
                 SetPortValue(node, "Success", success);
                 _log.Add($"[SAVE] Slot '{slot}': {(success ? "OK" : "FAILED")}");
@@ -734,7 +741,7 @@ public sealed class ScriptExecutor
             case NodeType.LoadGame:
             {
                 var slot   = node.Properties.GetValueOrDefault("Slot", "slot1");
-                var result = Persistence.Load(slot, Overworld.ActiveOverworld);
+                var result = Persistence.Load(slot, Overworld);
                 var ok     = result is not null;
                 if (ok)
                 {
@@ -1052,7 +1059,7 @@ public sealed class ScriptExecutor
     // ── Result building ────────────────────────────────────────────────────────
 
     private ExecutionResult BuildResult() =>
-        new(_log.AsReadOnly(), _activeMap, new List<Entity>(_entities));
+        new(_log.AsReadOnly(), _activeMap, new List<Entity>(_entities), _inCutscene);
 }
 
 /// <summary>
@@ -1061,7 +1068,11 @@ public sealed class ScriptExecutor
 /// <param name="Log">Execution log messages.</param>
 /// <param name="Map">The active <see cref="AsciiMap"/> at the end of execution, if any.</param>
 /// <param name="Entities">All live entities at the end of execution.</param>
+/// <param name="IsInCutscene">
+/// <see langword="true"/> if a cutscene is still active at the end of the run.
+/// </param>
 public sealed record ExecutionResult(
     IReadOnlyList<string> Log,
     AsciiMap? Map,
-    IReadOnlyList<Entity> Entities);
+    IReadOnlyList<Entity> Entities,
+    bool IsInCutscene = false);
