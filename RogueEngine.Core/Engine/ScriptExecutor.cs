@@ -1355,7 +1355,7 @@ public sealed class ScriptExecutor
             case NodeType.CustomProcgenStart:
             {
                 SetPortValue(node, "Map",  _activeMap);
-                SetPortValue(node, "Seed", 0);
+                SetPortValue(node, "Seed", _rng.Next());
                 ExecuteExecChain(node, "Exec");
                 break;
             }

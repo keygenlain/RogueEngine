@@ -938,6 +938,7 @@ public sealed class ScriptExecutorTests
         var entity = result.Entities[0];
         Assert.Equal("axe", entity.Properties.GetValueOrDefault("Equip_weapon", ""));
         // Should no longer be in inventory
-        Assert.DoesNotContain("axe", entity.Properties.GetValueOrDefault("Inventory", "").Split(','));
+        Assert.DoesNotContain("axe", entity.Properties.GetValueOrDefault("Inventory", "")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries));
     }
 }
