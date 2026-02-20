@@ -1229,5 +1229,93 @@ public static class NodeFactory
                 ("Key", PortDataType.String),
             ],
         };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.CheckEntityBump,
+            Title = "Check Entity Bump",
+            Description = "Checks whether moving Entity by (DX, DY) would place it on a tile occupied by another entity. Outputs Blocked and the blocking Target entity.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Entity", PortDataType.Entity),
+                ("DX", PortDataType.Int),
+                ("DY", PortDataType.Int),
+            ],
+            OutputPorts =
+            [
+                ("Blocked", PortDataType.Bool),
+                ("Target", PortDataType.Entity),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetEntityType,
+            Title = "Get Entity Type",
+            Description = "Reads the \"Type\" key from an entity's Properties dictionary and outputs it as a String (e.g. \"enemy\", \"npc\", \"item\").",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Entity", PortDataType.Entity),
+            ],
+            OutputPorts =
+            [
+                ("EntityType", PortDataType.String),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SetEntityStat,
+            Title = "Set Entity Stat",
+            Description = "Writes a value into an entity's Properties dictionary under the given StatName key.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("Entity", PortDataType.Entity),
+                ("StatName", PortDataType.String),
+                ("Value", PortDataType.Any),
+            ],
+            OutputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.ModifyEntityStat,
+            Title = "Modify Entity Stat",
+            Description = "Reads a numeric stat from an entity's Properties, applies an arithmetic operator (+, -, *, /) with Amount, writes the result back, and outputs the new value as a Float.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("Entity", PortDataType.Entity),
+                ("StatName", PortDataType.String),
+                ("Amount", PortDataType.Float),
+            ],
+            OutputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("NewValue", PortDataType.Float),
+            ],
+            DefaultProperties = { ["Operator"] = "+" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetEntitiesAtTile,
+            Title = "Get Entities At Tile",
+            Description = "Returns all live entities whose position matches the given tile coordinates. Outputs Count and the First matching entity.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("X", PortDataType.Int),
+                ("Y", PortDataType.Int),
+            ],
+            OutputPorts =
+            [
+                ("Count", PortDataType.Int),
+                ("First", PortDataType.Entity),
+            ],
+        };
     }
 }

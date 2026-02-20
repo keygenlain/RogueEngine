@@ -1240,6 +1240,83 @@ public sealed class ScriptExecutor
                 break;
             }
 
+            case NodeType.CheckEntityBump:
+            {
+                var mover  = ResolveAny(node, "Entity") as Entity;
+                var dx     = ResolveInt(node, "DX");
+                var dy     = ResolveInt(node, "DY");
+                Entity? target = null;
+                if (mover is not null)
+                {
+                    var tx = mover.X + dx;
+                    var ty = mover.Y + dy;
+                    target = _entities.FirstOrDefault(e => e != mover && e.X == tx && e.Y == ty);
+                }
+                SetPortValue(node, "Blocked", target is not null);
+                SetPortValue(node, "Target", target);
+                break;
+            }
+
+            case NodeType.GetEntityType:
+            {
+                var ent = ResolveAny(node, "Entity") as Entity;
+                var entityType = ent is not null
+                    ? ent.Properties.GetValueOrDefault("Type", string.Empty)
+                    : string.Empty;
+                SetPortValue(node, "EntityType", entityType);
+                break;
+            }
+
+            case NodeType.SetEntityStat:
+            {
+                var ent      = ResolveAny(node, "Entity") as Entity;
+                var statName = ResolveString(node, "StatName");
+                var value    = ResolveAny(node, "Value");
+                if (ent is not null && statName.Length > 0)
+                    ent.Properties[statName] = value is IFormattable fmt
+                        ? fmt.ToString(null, System.Globalization.CultureInfo.InvariantCulture)
+                        : value?.ToString() ?? string.Empty;
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.ModifyEntityStat:
+            {
+                var ent      = ResolveAny(node, "Entity") as Entity;
+                var statName = ResolveString(node, "StatName");
+                var amount   = ResolveFloat(node, "Amount");
+                var op       = node.Properties.GetValueOrDefault("Operator", "+");
+                float newValue = 0f;
+                if (ent is not null && statName.Length > 0)
+                {
+                    ent.Properties.TryGetValue(statName, out var existing);
+                    var current = ParseFloat(existing ?? "0");
+                    newValue = op switch
+                    {
+                        "+" => current + amount,
+                        "-" => current - amount,
+                        "*" => current * amount,
+                        "/" => amount == 0f ? current : current / amount,
+                        _   => current,
+                    };
+                    ent.Properties[statName] = newValue.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture);
+                }
+                SetPortValue(node, "NewValue", newValue);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.GetEntitiesAtTile:
+            {
+                var tx = ResolveInt(node, "X");
+                var ty = ResolveInt(node, "Y");
+                var matches = _entities.Where(e => e.X == tx && e.Y == ty).ToList();
+                SetPortValue(node, "Count", matches.Count);
+                SetPortValue(node, "First", matches.Count > 0 ? matches[0] : null);
+                break;
+            }
+
             default:
                 _log.Add($"[WARN] Unhandled node type: {node.Type}");
                 break;

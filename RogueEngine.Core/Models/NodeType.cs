@@ -305,4 +305,32 @@ public enum NodeType
     /// then resumes execution and outputs the pressed Key as a String.
     /// </summary>
     WaitForInput,
+
+    /// <summary>
+    /// Checks whether moving an Entity by (DX, DY) would place it on a tile
+    /// occupied by another entity, indicating a bump interaction.
+    /// Outputs <see langword="true"/> and the blocking Target entity if blocked.
+    /// </summary>
+    CheckEntityBump,
+    /// <summary>
+    /// Reads the "Type" key from an entity's Properties dictionary and outputs
+    /// it as a String (e.g. "enemy", "npc", "item").
+    /// </summary>
+    GetEntityType,
+    /// <summary>
+    /// Writes a value into an entity's Properties dictionary under the given
+    /// StatName key.
+    /// </summary>
+    SetEntityStat,
+    /// <summary>
+    /// Reads a numeric stat from an entity's Properties, applies an arithmetic
+    /// operator (+, -, *, /) with the given Amount, writes the result back, and
+    /// outputs the new value as a Float.
+    /// </summary>
+    ModifyEntityStat,
+    /// <summary>
+    /// Returns all live entities whose (X, Y) position matches the given tile
+    /// coordinates.  Outputs Count and the First matching entity.
+    /// </summary>
+    GetEntitiesAtTile,
 }
