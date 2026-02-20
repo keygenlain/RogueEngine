@@ -1,7 +1,7 @@
+/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/obj/Debug/net8.0/RogueEngine.Core.GeneratedMSBuildEditorConfig.editorconfig
 /home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/bin/Debug/net8.0/RogueEngine.Core.deps.json
 /home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/bin/Debug/net8.0/RogueEngine.Core.dll
 /home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/bin/Debug/net8.0/RogueEngine.Core.pdb
-/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/obj/Debug/net8.0/RogueEngine.Core.GeneratedMSBuildEditorConfig.editorconfig
 /home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/obj/Debug/net8.0/RogueEngine.Core.AssemblyInfoInputs.cache
 /home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/obj/Debug/net8.0/RogueEngine.Core.AssemblyInfo.cs
 /home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/obj/Debug/net8.0/RogueEngine.Core.csproj.CoreCompileInputs.cache
