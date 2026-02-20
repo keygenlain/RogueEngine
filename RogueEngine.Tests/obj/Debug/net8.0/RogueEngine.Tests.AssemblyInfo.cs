@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RogueEngine.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+835a64208f422f97bbfab57df28f148f2ae52e69")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+098813d281f9be0b774af1e42a4d3711adff82df")]
 [assembly: System.Reflection.AssemblyProductAttribute("RogueEngine.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RogueEngine.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

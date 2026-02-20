@@ -27,6 +27,8 @@ public enum PortDataType
     Location,
     /// <summary>Reference to a <see cref="NetworkSession"/>.</summary>
     Session,
+    /// <summary>Reference to a <see cref="Scene.SceneNode"/>.</summary>
+    SceneNode,
     /// <summary>Any type (for polymorphic ports).</summary>
     Any,
 }

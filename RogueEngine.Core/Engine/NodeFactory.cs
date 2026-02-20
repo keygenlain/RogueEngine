@@ -873,5 +873,206 @@ public static class NodeFactory
             OutputPorts = [("Exec", PortDataType.Exec), ("Hour", PortDataType.Int)],
             DefaultProperties = { ["Hour"] = "6" },
         };
+
+        // ── Scene Tree ─────────────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneCreate,
+            Title = "Create Scene Node",
+            Description = "Creates a new scene node of the specified type and adds it as a child.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec), ("Parent", PortDataType.SceneNode)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode)],
+            DefaultProperties = { ["NodeType"] = "SpriteNode", ["Name"] = "NewNode" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneAddChild,
+            Title = "Add Child",
+            Description = "Adds a scene node as a child of another.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec), ("Parent", PortDataType.SceneNode), ("Child", PortDataType.SceneNode)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneRemoveChild,
+            Title = "Remove Child",
+            Description = "Removes a node from its parent and exits the tree.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneFindNode,
+            Title = "Find Node",
+            Description = "Finds a node in the active scene by name.",
+            Category = "Scene",
+            OutputPorts = [("Node", PortDataType.SceneNode)],
+            DefaultProperties = { ["Name"] = "NodeName" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneInstantiate,
+            Title = "Instantiate Scene",
+            Description = "Instantiates a registered scene definition by name.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Root", PortDataType.SceneNode)],
+            DefaultProperties = { ["SceneName"] = "main" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneChange,
+            Title = "Change Scene",
+            Description = "Switches the active scene to the named registered scene.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["SceneName"] = "main" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneGetCurrent,
+            Title = "Get Current Scene",
+            Description = "Outputs the name of the currently active scene.",
+            Category = "Scene",
+            OutputPorts = [("Name", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneSetPosition,
+            Title = "Set Node Position",
+            Description = "Sets a GridNode's position on the ASCII grid.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode), ("X", PortDataType.Int), ("Y", PortDataType.Int)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneGetPosition,
+            Title = "Get Node Position",
+            Description = "Outputs the current grid position of a GridNode.",
+            Category = "Scene",
+            InputPorts = [("Node", PortDataType.SceneNode)],
+            OutputPorts = [("X", PortDataType.Int), ("Y", PortDataType.Int)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneSetActive,
+            Title = "Set Node Active",
+            Description = "Enables or disables a scene node.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode), ("Active", PortDataType.Bool)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SceneSetVisible,
+            Title = "Set Node Visible",
+            Description = "Shows or hides a scene node.",
+            Category = "Scene",
+            InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode), ("Visible", PortDataType.Bool)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnTimerTimeout,
+            Title = "On Timer Timeout",
+            Description = "Fires when a TimerNode with the given name times out.",
+            Category = "Scene",
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["TimerName"] = "MyTimer" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnAreaBodyEntered,
+            Title = "On Area Body Entered",
+            Description = "Fires when an entity enters the named AreaNode.",
+            Category = "Scene",
+            OutputPorts = [("Exec", PortDataType.Exec), ("Entity", PortDataType.Entity)],
+            DefaultProperties = { ["AreaName"] = "MyArea" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnAreaBodyExited,
+            Title = "On Area Body Exited",
+            Description = "Fires when an entity exits the named AreaNode.",
+            Category = "Scene",
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["AreaName"] = "MyArea" },
+        };
+
+        // ── Sprite System ──────────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.RegisterSprite,
+            Title = "Register Sprite",
+            Description = "Registers an ASCII-or-graphical sprite definition in the sprite library.",
+            Category = "Sprites",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = {
+                ["Name"] = "my_sprite", ["Glyph"] = "@",
+                ["FgColor"] = "FFFFFF", ["BgColor"] = "000000",
+                ["ImagePath"] = "", ["TileX"] = "0", ["TileY"] = "0",
+                ["TileWidth"] = "0", ["TileHeight"] = "0",
+                ["RenderMode"] = "Auto",
+            },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.LoadSpriteSheet,
+            Title = "Load Sprite Sheet",
+            Description = "Registers a sprite-sheet atlas and creates named tile sprites.",
+            Category = "Sprites",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = {
+                ["SheetName"] = "tiles", ["ImagePath"] = "tiles.png",
+                ["TileWidth"] = "16", ["TileHeight"] = "16",
+                ["SpacingX"] = "0", ["SpacingY"] = "0",
+                ["MarginX"] = "0", ["MarginY"] = "0",
+            },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SpriteSetSprite,
+            Title = "Set Sprite",
+            Description = "Assigns a named sprite to a SpriteNode.",
+            Category = "Sprites",
+            InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["SpriteName"] = "player" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SpriteGetSprite,
+            Title = "Get Sprite",
+            Description = "Outputs the current sprite name of a SpriteNode.",
+            Category = "Sprites",
+            InputPorts = [("Node", PortDataType.SceneNode)],
+            OutputPorts = [("SpriteName", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SpriteSetRenderMode,
+            Title = "Set Sprite Render Mode",
+            Description = "Sets the render mode for a SpriteNode (AsciiOnly / Auto / GraphicPreferred).",
+            Category = "Sprites",
+            InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Mode"] = "Auto" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SpriteSetPlaying,
+            Title = "Set Sprite Playing",
+            Description = "Starts or stops sprite animation on a SpriteNode.",
+            Category = "Sprites",
+            InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode), ("Playing", PortDataType.Bool)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
     }
 }

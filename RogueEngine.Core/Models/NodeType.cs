@@ -200,6 +200,50 @@ public enum NodeType
     /// <summary>Fires at a specific in-game hour.</summary>
     OnTimeOfDay,
 
+    // ── Scene Tree ────────────────────────────────────────────────────────────
+    /// <summary>Creates a new scene root node.</summary>
+    SceneCreate,
+    /// <summary>Adds a child node to a parent scene node.</summary>
+    SceneAddChild,
+    /// <summary>Removes a child node from its parent.</summary>
+    SceneRemoveChild,
+    /// <summary>Finds a node in the active scene by name and type.</summary>
+    SceneFindNode,
+    /// <summary>Instantiates a registered scene definition by name.</summary>
+    SceneInstantiate,
+    /// <summary>Switches the active scene to a named registered scene.</summary>
+    SceneChange,
+    /// <summary>Outputs the name of the currently active scene.</summary>
+    SceneGetCurrent,
+    /// <summary>Sets a node's grid position.</summary>
+    SceneSetPosition,
+    /// <summary>Outputs a node's current grid position.</summary>
+    SceneGetPosition,
+    /// <summary>Toggles a node's Active flag.</summary>
+    SceneSetActive,
+    /// <summary>Toggles a node's Visible flag.</summary>
+    SceneSetVisible,
+    /// <summary>Fires when a TimerNode times out.</summary>
+    OnTimerTimeout,
+    /// <summary>Fires when an entity enters an AreaNode.</summary>
+    OnAreaBodyEntered,
+    /// <summary>Fires when an entity exits an AreaNode.</summary>
+    OnAreaBodyExited,
+
+    // ── Sprite System ─────────────────────────────────────────────────────────
+    /// <summary>Registers a sprite definition in the sprite library.</summary>
+    RegisterSprite,
+    /// <summary>Loads a sprite sheet atlas into the sprite library.</summary>
+    LoadSpriteSheet,
+    /// <summary>Sets the sprite used by a SpriteNode by name.</summary>
+    SpriteSetSprite,
+    /// <summary>Outputs the current sprite name of a SpriteNode.</summary>
+    SpriteGetSprite,
+    /// <summary>Sets the render mode for a SpriteNode (ASCII / Graphic / Auto).</summary>
+    SpriteSetRenderMode,
+    /// <summary>Starts or stops a sprite animation.</summary>
+    SpriteSetPlaying,
+
     // ── Custom / Extension ────────────────────────────────────────────────────
     /// <summary>Executes an inline C# expression string (advanced users).</summary>
     InlineExpression,

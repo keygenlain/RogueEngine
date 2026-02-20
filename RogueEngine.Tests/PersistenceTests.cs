@@ -15,7 +15,7 @@ public sealed class PersistenceTests
 
     private static PersistenceManager MakeMgr() => new();
 
-    private static OverworldManager MakeMgrWithWorld(out Models.Overworld world)
+    private static OverworldManager MakeMgrWithWorld(out Overworld world)
     {
         var mgr = new OverworldManager();
         world = mgr.CreateOverworld("Test World");

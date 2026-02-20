@@ -2,8 +2,8 @@ namespace RogueEngine.Core.Models;
 
 /// <summary>
 /// Represents a single cell in an ASCII display grid.
-/// Each cell stores a character, a foreground colour, and a background colour.
-/// Colours are encoded as 24-bit RGB integers (0xRRGGBB).
+/// Each cell stores a character, foreground/background colours, and an optional
+/// sprite name for graphical rendering.  Colours are 24-bit RGB (0xRRGGBB).
 /// </summary>
 public sealed class AsciiCell
 {
@@ -23,16 +23,25 @@ public sealed class AsciiCell
     public int BackgroundColor { get; set; } = 0x000000;
 
     /// <summary>
-    /// Creates a deep copy of this cell.
+    /// Optional name of a <see cref="Scene.SpriteDefinition"/> registered in the
+    /// project's <see cref="Scene.SpriteLibrary"/>.
+    /// When non-null and the WPF renderer is in <em>graphic</em> mode, the
+    /// renderer draws the sprite's tile image instead of (or beneath) the
+    /// ASCII glyph.  In pure ASCII mode this field is ignored.
     /// </summary>
+    public string? SpriteName { get; set; }
+
+    /// <summary>Creates a deep copy of this cell.</summary>
     public AsciiCell Clone() => new()
     {
-        Character = Character,
+        Character       = Character,
         ForegroundColor = ForegroundColor,
         BackgroundColor = BackgroundColor,
+        SpriteName      = SpriteName,
     };
 
     /// <inheritdoc/>
     public override string ToString() =>
-        $"'{Character}' fg=#{ForegroundColor:X6} bg=#{BackgroundColor:X6}";
+        $"'{Character}' fg=#{ForegroundColor:X6} bg=#{BackgroundColor:X6}" +
+        (SpriteName is null ? "" : $" sprite='{SpriteName}'");
 }

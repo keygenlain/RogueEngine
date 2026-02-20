@@ -72,23 +72,34 @@ public sealed class ScriptExecutor
     public NetworkSessionManager? Network { get; set; }
 
     /// <summary>
+    /// Scene tree managed by this executor.
+    /// Scene-tree node types (SceneCreate, SceneAddChild, etc.) operate on this tree.
+    /// A fresh tree with the default <see cref="Scene.SpriteLibrary"/> is created
+    /// automatically; pass a pre-configured tree to share state across executors.
+    /// </summary>
+    public Scene.SceneTree SceneTree { get; }
+
+    /// <summary>
     /// Creates a new executor for the given <paramref name="graph"/>.
     /// </summary>
     /// <param name="graph">The script graph to execute.</param>
     /// <param name="seed">Optional RNG seed for reproducible runs.</param>
     /// <param name="overworld">Optional shared overworld manager.</param>
     /// <param name="persistence">Optional shared persistence manager.</param>
+    /// <param name="sceneTree">Optional pre-configured scene tree.</param>
     public ScriptExecutor(
         ScriptGraph graph,
         int? seed = null,
         OverworldManager? overworld = null,
-        PersistenceManager? persistence = null)
+        PersistenceManager? persistence = null,
+        Scene.SceneTree? sceneTree = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         _graph = graph;
         _rng = seed.HasValue ? new Random(seed.Value) : new Random();
-        Overworld = overworld ?? new OverworldManager();
+        Overworld   = overworld   ?? new OverworldManager();
         Persistence = persistence ?? new PersistenceManager();
+        SceneTree   = sceneTree   ?? new Scene.SceneTree();
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -903,11 +914,215 @@ public sealed class ScriptExecutor
                 break;
             }
 
+            // ── Scene Tree ─────────────────────────────────────────────────────
+            case NodeType.SceneCreate:
+            {
+                var nodeTypeName = node.Properties.GetValueOrDefault("NodeType", "SpriteNode");
+                var nodeName     = node.Properties.GetValueOrDefault("Name", "NewNode");
+                var sceneNode    = CreateSceneNodeByType(nodeTypeName, nodeName);
+                var parent       = ResolveAny(node, "Parent") as Scene.SceneNode;
+                if (parent is not null) parent.AddChild(sceneNode);
+                else SceneTree.Root.AddChild(sceneNode);
+                SetPortValue(node, "Node", sceneNode);
+                _log.Add($"[SCENE] Created {nodeTypeName} '{nodeName}'");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SceneAddChild:
+            {
+                var parent = ResolveAny(node, "Parent") as Scene.SceneNode;
+                var child  = ResolveAny(node, "Child")  as Scene.SceneNode;
+                if (parent is not null && child is not null)
+                    parent.AddChild(child);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SceneRemoveChild:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.SceneNode;
+                sceneNode?.QueueFree();
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SceneFindNode:
+            {
+                var name = node.Properties.GetValueOrDefault("Name", "");
+                var found = SceneTree.FindNode<Scene.SceneNode>(name);
+                SetPortValue(node, "Node", found);
+                break;
+            }
+            case NodeType.SceneInstantiate:
+            {
+                var sceneName = node.Properties.GetValueOrDefault("SceneName", "");
+                // Instantiation via ChangeScene is the primary path; here we just log.
+                _log.Add($"[SCENE] Instantiate '{sceneName}'");
+                try { SceneTree.ChangeScene(sceneName); }
+                catch (KeyNotFoundException) { _log.Add($"[WARN] Scene '{sceneName}' not registered."); }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SceneChange:
+            {
+                var sceneName = node.Properties.GetValueOrDefault("SceneName", "");
+                try { SceneTree.ChangeScene(sceneName); _log.Add($"[SCENE] → '{sceneName}'"); }
+                catch (KeyNotFoundException) { _log.Add($"[WARN] Scene '{sceneName}' not found."); }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SceneGetCurrent:
+                SetPortValue(node, "Name", SceneTree.ActiveSceneName);
+                break;
+            case NodeType.SceneSetPosition:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.GridNode;
+                if (sceneNode is not null)
+                {
+                    sceneNode.GridX = ResolveInt(node, "X");
+                    sceneNode.GridY = ResolveInt(node, "Y");
+                }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SceneGetPosition:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.GridNode;
+                SetPortValue(node, "X", sceneNode?.GridX ?? 0);
+                SetPortValue(node, "Y", sceneNode?.GridY ?? 0);
+                break;
+            }
+            case NodeType.SceneSetActive:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.SceneNode;
+                if (sceneNode is not null)
+                    sceneNode.Active = ResolveBool(node, "Active");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SceneSetVisible:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.SceneNode;
+                if (sceneNode is not null)
+                    sceneNode.Visible = ResolveBool(node, "Visible");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.OnTimerTimeout:
+            case NodeType.OnAreaBodyEntered:
+            case NodeType.OnAreaBodyExited:
+                // Event nodes — fired externally by the SceneTree.
+                break;
+
+            // ── Sprite System ──────────────────────────────────────────────────
+            case NodeType.RegisterSprite:
+            {
+                var spriteName = node.Properties.GetValueOrDefault("Name", "sprite");
+                var glyphStr   = node.Properties.GetValueOrDefault("Glyph", "?");
+                int.TryParse(node.Properties.GetValueOrDefault("FgColor", "FFFFFF"),
+                    System.Globalization.NumberStyles.HexNumber, null, out var fg);
+                int.TryParse(node.Properties.GetValueOrDefault("BgColor", "000000"),
+                    System.Globalization.NumberStyles.HexNumber, null, out var bg);
+                var imagePath   = node.Properties.GetValueOrDefault("ImagePath", "");
+                int.TryParse(node.Properties.GetValueOrDefault("TileX",      "0"), out var tx);
+                int.TryParse(node.Properties.GetValueOrDefault("TileY",      "0"), out var ty);
+                int.TryParse(node.Properties.GetValueOrDefault("TileWidth",  "0"), out var tw);
+                int.TryParse(node.Properties.GetValueOrDefault("TileHeight", "0"), out var th);
+                Enum.TryParse<Scene.SpriteRenderMode>(
+                    node.Properties.GetValueOrDefault("RenderMode", "Auto"), out var mode);
+
+                var sprite = new Scene.SpriteDefinition
+                {
+                    Name            = spriteName,
+                    Glyph           = glyphStr.Length > 0 ? glyphStr[0] : '?',
+                    ForegroundColor = fg,
+                    BackgroundColor = bg,
+                    ImagePath       = string.IsNullOrWhiteSpace(imagePath) ? null : imagePath,
+                    TileX           = tx, TileY = ty, TileWidth = tw, TileHeight = th,
+                    RenderMode      = mode,
+                };
+                SceneTree.Library.Register(sprite);
+                _log.Add($"[SPRITE] Registered '{spriteName}'");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.LoadSpriteSheet:
+            {
+                var sheetName = node.Properties.GetValueOrDefault("SheetName", "tiles");
+                var imagePath = node.Properties.GetValueOrDefault("ImagePath", "");
+                int.TryParse(node.Properties.GetValueOrDefault("TileWidth",  "16"), out var tw);
+                int.TryParse(node.Properties.GetValueOrDefault("TileHeight", "16"), out var th);
+                int.TryParse(node.Properties.GetValueOrDefault("SpacingX",   "0"),  out var sx);
+                int.TryParse(node.Properties.GetValueOrDefault("SpacingY",   "0"),  out var sy);
+                int.TryParse(node.Properties.GetValueOrDefault("MarginX",    "0"),  out var mx);
+                int.TryParse(node.Properties.GetValueOrDefault("MarginY",    "0"),  out var my);
+                var sheet = new Scene.SpriteSheet
+                {
+                    Name = sheetName, ImagePath = imagePath,
+                    TileWidth = tw, TileHeight = th,
+                    SpacingX = sx, SpacingY = sy,
+                    MarginX = mx, MarginY = my,
+                };
+                SceneTree.Library.RegisterSheet(sheet);
+                _log.Add($"[SPRITE] Loaded sheet '{sheetName}'");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SpriteSetSprite:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.SpriteNode;
+                var name      = node.Properties.GetValueOrDefault("SpriteName", "unknown");
+                if (sceneNode is not null)
+                {
+                    sceneNode.SpriteName = name;
+                    sceneNode.Sprite     = SceneTree.Library.Get(name);
+                }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SpriteGetSprite:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.SpriteNode;
+                SetPortValue(node, "SpriteName", sceneNode?.SpriteName ?? string.Empty);
+                break;
+            }
+            case NodeType.SpriteSetRenderMode:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.SpriteNode;
+                if (sceneNode?.Sprite is not null)
+                {
+                    Enum.TryParse<Scene.SpriteRenderMode>(
+                        node.Properties.GetValueOrDefault("Mode", "Auto"), out var rm);
+                    sceneNode.Sprite.RenderMode = rm;
+                }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SpriteSetPlaying:
+            {
+                var sceneNode = ResolveAny(node, "Node") as Scene.SpriteNode;
+                if (sceneNode is not null)
+                    sceneNode.Playing = ResolveBool(node, "Playing");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
             default:
                 _log.Add($"[WARN] Unhandled node type: {node.Type}");
                 break;
         }
     }
+
+    private static Scene.SceneNode CreateSceneNodeByType(string typeName, string name) =>
+        typeName switch
+        {
+            nameof(Scene.SpriteNode)   => new Scene.SpriteNode   { Name = name },
+            nameof(Scene.EntityNode)   => new Scene.EntityNode    { Name = name },
+            nameof(Scene.MapNode)      => new Scene.MapNode       { Name = name },
+            nameof(Scene.LabelNode)    => new Scene.LabelNode     { Name = name },
+            nameof(Scene.TimerNode)    => new Scene.TimerNode     { Name = name },
+            nameof(Scene.AreaNode)     => new Scene.AreaNode      { Name = name },
+            nameof(Scene.CameraNode)   => new Scene.CameraNode    { Name = name },
+            _                          => new Scene.GridNode      { Name = name },
+        };
 
     // ── Value resolution ───────────────────────────────────────────────────────
 
