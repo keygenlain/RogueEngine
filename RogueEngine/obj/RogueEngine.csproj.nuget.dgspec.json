@@ -1,25 +1,27 @@
 {
   "format": 1,
   "restore": {
-    "/home/runner/work/RogueEngine/RogueEngine/RogueEngine/RogueEngine.csproj": {}
+    "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\rogueengine\\RogueEngine.csproj": {}
   },
   "projects": {
-    "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/RogueEngine.Core.csproj": {
+    "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\RogueEngine.Core\\RogueEngine.Core.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/RogueEngine.Core.csproj",
+        "projectUniqueName": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\RogueEngine.Core\\RogueEngine.Core.csproj",
         "projectName": "RogueEngine.Core",
-        "projectPath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/RogueEngine.Core.csproj",
-        "packagesPath": "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages",
-        "outputPath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/obj/",
+        "projectPath": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\RogueEngine.Core\\RogueEngine.Core.csproj",
+        "packagesPath": "C:\\Users\\inotb\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\RogueEngine.Core\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/home/runner/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\inotb\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -57,15 +59,15 @@
           "downloadDependencies": [
             {
               "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[8.0.23, 8.0.23]"
+              "version": "[8.0.24, 8.0.24]"
             },
             {
               "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.23, 8.0.23]"
+              "version": "[8.0.24, 8.0.24]"
             },
             {
               "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[8.0.23, 8.0.23]"
+              "version": "[8.0.24, 8.0.24]"
             }
           ],
           "frameworkReferences": {
@@ -73,34 +75,36 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.102/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "/home/runner/work/RogueEngine/RogueEngine/RogueEngine/RogueEngine.csproj": {
+    "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\rogueengine\\RogueEngine.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine/RogueEngine.csproj",
+        "projectUniqueName": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\rogueengine\\RogueEngine.csproj",
         "projectName": "RogueEngine",
-        "projectPath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine/RogueEngine.csproj",
-        "packagesPath": "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages",
-        "outputPath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine/obj/",
+        "projectPath": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\rogueengine\\RogueEngine.csproj",
+        "packagesPath": "C:\\Users\\inotb\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\rogueengine\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/home/runner/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\inotb\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net8.0-windows"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
           "net8.0-windows7.0": {
             "targetAlias": "net8.0-windows",
             "projectReferences": {
-              "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/RogueEngine.Core.csproj": {
-                "projectPath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Core/RogueEngine.Core.csproj"
+              "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\RogueEngine.Core\\RogueEngine.Core.csproj": {
+                "projectPath": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\RogueEngine.Core\\RogueEngine.Core.csproj"
               }
             }
           }
@@ -134,19 +138,19 @@
           "downloadDependencies": [
             {
               "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[8.0.23, 8.0.23]"
+              "version": "[8.0.24, 8.0.24]"
             },
             {
-              "name": "Microsoft.NETCore.App.Host.linux-x64",
-              "version": "[8.0.23, 8.0.23]"
+              "name": "Microsoft.NETCore.App.Host.win-x64",
+              "version": "[8.0.24, 8.0.24]"
             },
             {
               "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.23, 8.0.23]"
+              "version": "[8.0.24, 8.0.24]"
             },
             {
               "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[8.0.23, 8.0.23]"
+              "version": "[8.0.24, 8.0.24]"
             }
           ],
           "frameworkReferences": {
@@ -157,7 +161,7 @@
               "privateAssets": "none"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.102/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

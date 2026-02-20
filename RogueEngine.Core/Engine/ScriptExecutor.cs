@@ -171,6 +171,26 @@ public sealed class ScriptExecutor
     }
 
     /// <summary>
+    /// Fires all <see cref="NodeType.OnKeyPress"/> event nodes with the supplied key.
+    /// </summary>
+    /// <param name="key">Key name to emit (e.g. ArrowUp, Enter, Space).</param>
+    public ExecutionResult TriggerKeyPress(string key)
+    {
+        _portValues.Clear();
+        _log.Clear();
+        _inProgress.Clear();
+
+        var emittedKey = key ?? string.Empty;
+        foreach (var node in _graph.Nodes.Where(n => n.Type == NodeType.OnKeyPress))
+        {
+            SetPortValue(node, "Key", emittedKey);
+            ExecuteExecChain(node, "Exec");
+        }
+
+        return BuildResult();
+    }
+
+    /// <summary>
     /// Sets the menu selection index (used by the WPF layer when a menu returns).
     /// </summary>
     public void SetMenuSelection(int index) => _lastMenuSelection = index;

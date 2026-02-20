@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using RogueEngine.Core.Models;
 
 namespace RogueEngine.Core.Engine;
@@ -913,12 +914,13 @@ public sealed class GameExporter
 
     private string BuildHtml5Page(string projectJson)
     {
-        var escapedJson = projectJson.Replace("</script>", "<\\/script>");
         var title = System.Security.SecurityElement.Escape(_project.Name) ?? _project.Name;
-        var fontFamily = _project.FontFamily;
+      var fontFamily = _project.FontFamily;
         var fontSize = _project.FontSizePx;
         var cols = _project.DisplayWidth;
         var rows = _project.DisplayHeight;
+
+      var (fontFaceCss, effectiveFontFamily) = BuildFontCss();
 
         return $$"""
             <!DOCTYPE html>
@@ -929,6 +931,7 @@ public sealed class GameExporter
               <title>{{title}}</title>
               <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
+                {{fontFaceCss}}
                 body { background: #000; display: flex; justify-content: center;
                        align-items: flex-start; min-height: 100vh; padding: 20px; }
                 #game-container { position: relative; }
@@ -961,7 +964,7 @@ public sealed class GameExporter
             // ASCII Display
             //──────────────────────────────────────────────────────────────
             const COLS = {{cols}}, ROWS = {{rows}};
-            const FONT = '{{fontSize}}px "{{fontFamily}}", monospace';
+            const FONT = '{{fontSize}}px "{{effectiveFontFamily}}", "{{fontFamily}}", monospace';
 
             // Measure a single character to size the canvas.
             (function sizeCanvas() {
@@ -1367,6 +1370,56 @@ public sealed class GameExporter
             </html>
             """;
     }
+
+        private (string FontFaceCss, string EffectiveFamilyName) BuildFontCss()
+        {
+          if (string.IsNullOrWhiteSpace(_project.CustomFontPath))
+            return (string.Empty, _project.FontFamily);
+
+          const string familyName = "RogueCustomFont";
+          var source = _project.CustomFontPath!.Trim();
+
+          if (Uri.TryCreate(source, UriKind.Absolute, out var uri) &&
+            (uri.Scheme is "http" or "https" or "data"))
+          {
+            var escaped = source.Replace("\"", "\\\"");
+            return ($"@font-face {{ font-family: '{familyName}'; src: url(\"{escaped}\"); font-display: swap; }}", familyName);
+          }
+
+          if (!File.Exists(source))
+            return (string.Empty, _project.FontFamily);
+
+          var bytes = File.ReadAllBytes(source);
+          if (bytes.Length == 0)
+            return (string.Empty, _project.FontFamily);
+
+          var extension = Path.GetExtension(source).ToLowerInvariant();
+          var format = extension switch
+          {
+            ".ttf" => "truetype",
+            ".otf" => "opentype",
+            ".woff" => "woff",
+            ".woff2" => "woff2",
+            _ => "truetype",
+          };
+
+          var mime = extension switch
+          {
+            ".ttf" => "font/ttf",
+            ".otf" => "font/otf",
+            ".woff" => "font/woff",
+            ".woff2" => "font/woff2",
+            _ => "application/octet-stream",
+          };
+
+          var b64 = Convert.ToBase64String(bytes);
+          var css = new StringBuilder();
+          css.Append("@font-face { ");
+          css.Append($"font-family: '{familyName}'; ");
+          css.Append($"src: url('data:{mime};base64,{b64}') format('{format}'); ");
+          css.Append("font-display: swap; }");
+          return (css.ToString(), familyName);
+        }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
 

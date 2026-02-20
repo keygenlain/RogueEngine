@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RogueEngine — Engine Reference</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --border: #334155;
+      --code: #0b1220;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Segoe UI, Inter, Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1, h2, h3 { line-height: 1.2; }
+    h1 { margin-top: 0; }
+    .muted { color: var(--muted); }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 8px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #172033; }
+    code {
+      background: var(--code);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-family: Consolas, Menlo, Monaco, monospace;
+      color: #cbd5e1;
+    }
+    ul { margin-top: 6px; }
+    .toc ul { columns: 2; }
+    .badge {
+      display: inline-block;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>RogueEngine — Complete Engine Reference</h1>
+    <p class="muted">Generated from the current repository structure on 2026-02-20. This document is intended as a practical engineering reference for the full engine, editor shell, and test suite.</p>
+
+    <div class="panel">
+      <span class="badge">Solution: RogueEngine.slnx</span>
+      <span class="badge">Core Source Files: 33</span>
+      <span class="badge">Editor Source Files: 3</span>
+      <span class="badge">Test Files: 9</span>
+      <p><a href="editor-manual.html">Open the in-depth Editor Manual + "Your First Roguelike" tutorial</a></p>
+    </div>
+
+    <div class="panel toc">
+      <h2>Table of Contents</h2>
+      <ul>
+        <li><a href="#overview">1. Engine Overview</a></li>
+        <li><a href="#architecture">2. Architecture and Layering</a></li>
+        <li><a href="#runtime">3. Runtime Execution Model</a></li>
+        <li><a href="#nodes">4. Visual Node System</a></li>
+        <li><a href="#serialization">5. Project Serialization and Save/Load</a></li>
+        <li><a href="#procgen">6. Map and Procgen Systems</a></li>
+        <li><a href="#scene">7. Scene and Sprite Systems</a></li>
+        <li><a href="#networking">8. Multiplayer and Networking</a></li>
+        <li><a href="#export">9. Export Targets</a></li>
+        <li><a href="#editor">10. Editor Application (WPF)</a></li>
+        <li><a href="#source-index">11. Complete Source Index</a></li>
+        <li><a href="#tests">12. Test Coverage Map</a></li>
+        <li><a href="#runtime-foundation">13. Runtime Foundation (New)</a></li>
+      </ul>
+    </div>
+
+    <section id="overview" class="panel">
+      <h2>1. Engine Overview</h2>
+      <p><strong>RogueEngine</strong> is a C#/.NET 8 visual-scripting engine focused on ASCII and roguelike-style game workflows. The engine separates runtime functionality into a reusable library (<code>RogueEngine.Core</code>) and an editor host app (<code>RogueEngine</code>).</p>
+      <ul>
+        <li><strong>Authoring model:</strong> games are authored as <code>GameProject</code> objects containing one or more <code>ScriptGraph</code> graphs.</li>
+        <li><strong>Execution model:</strong> a graph is interpreted by <code>ScriptExecutor</code>, beginning from <code>Start</code> or <code>CustomProcgenStart</code> nodes.</li>
+        <li><strong>Data model:</strong> typed ports and directed connections form the data and control-flow graph.</li>
+        <li><strong>Runtime domains:</strong> map generation, entities, dialogue, scenes/sprites, persistence, overworld, factions/time, networking, and export.</li>
+      </ul>
+    </section>
+
+    <section id="architecture" class="panel">
+      <h2>2. Architecture and Layering</h2>
+      <h3>2.1 Project boundaries</h3>
+      <ul>
+        <li><code>RogueEngine.Core</code>: shared runtime, models, graph execution, serialization, exporters, networking, scene graph.</li>
+        <li><code>RogueEngine</code>: WPF editor UI, user interaction, file dialogs, integration with core APIs.</li>
+        <li><code>RogueEngine.Tests</code>: unit/integration tests for core engine behavior.</li>
+      </ul>
+
+      <h3>2.2 Core namespaces</h3>
+      <ul>
+        <li><code>RogueEngine.Core.Models</code>: strongly-typed data contracts (graphs, nodes, maps, entities, sessions).</li>
+        <li><code>RogueEngine.Core.Engine</code>: runtime services and interpreters.</li>
+        <li><code>RogueEngine.Core.Scene</code>: scene tree, sprite definitions/library, reusable scene definitions.</li>
+      </ul>
+    </section>
+
+    <section id="runtime" class="panel">
+      <h2>3. Runtime Execution Model</h2>
+      <ol>
+        <li>Load a <code>GameProject</code> and select a start graph (<code>StartGraphId</code>).</li>
+        <li>Create <code>ScriptExecutor</code> with graph and optional subsystem managers.</li>
+        <li>Resolve entry node (<code>Start</code> or procgen start).</li>
+        <li>Traverse execution connections (<code>Exec</code> ports) depth-first.</li>
+        <li>Lazily resolve data inputs through upstream node output evaluation.</li>
+        <li>Emit an <code>ExecutionResult</code> (log, active map, entities, cutscene state).</li>
+      </ol>
+      <p class="muted">Key guardrails include loop iteration limits and recursion/in-progress tracking to prevent runaway graph execution.</p>
+    </section>
+
+    <section id="nodes" class="panel">
+      <h2>4. Visual Node System</h2>
+      <p>Node definitions are centralized in <code>NodeFactory</code>, with metadata for category, title, default properties, and typed input/output ports. The repository’s <code>NODES.md</code> currently documents 129 nodes across 20 categories.</p>
+
+      <h3>4.1 Node categories</h3>
+      <p>Variables, Math &amp; Logic, Control Flow, Map &amp; Procgen, Entity, ASCII Display, Menus, Events, Overworld, Multiplayer, Persistence, Dialogue &amp; Cutscenes, Factions &amp; Relationships, Time, Scene Tree, Sprites, Morgue, Advanced, Battle, RPG.</p>
+
+      <h3>4.2 Graph composition primitives</h3>
+      <ul>
+        <li><code>ScriptNode</code>: operation instance with position, ports, and local properties.</li>
+        <li><code>NodePort</code>: typed endpoint with input/output direction and default value.</li>
+        <li><code>NodeConnection</code>: directed edge from output port to input port.</li>
+        <li><code>ScriptGraph.Connect(...)</code>: duplicate-safe connection creation helper.</li>
+      </ul>
+    </section>
+
+    <section id="serialization" class="panel">
+      <h2>5. Project Serialization and Save/Load</h2>
+      <h3>5.1 Authoring/project persistence</h3>
+      <ul>
+        <li><code>ScriptGraphSerializer</code> serializes <code>GameProject</code> to JSON (camelCase, enum-as-string).</li>
+        <li>Includes DTO mappings for graphs, nodes, ports, and connections.</li>
+        <li>Supports load/save from strings and files.</li>
+      </ul>
+
+      <h3>5.2 Runtime save slots</h3>
+      <ul>
+        <li><code>PersistenceManager</code> handles game-state save slots and in-memory snapshots.</li>
+        <li>Persists global store, location state, entities, faction relations, time-of-day, and session-adjacent state.</li>
+        <li>Slot operations include save, load, list, exists, and delete.</li>
+      </ul>
+    </section>
+
+    <section id="procgen" class="panel">
+      <h2>6. Map and Procgen Systems</h2>
+      <ul>
+        <li><code>AsciiMap</code> and <code>AsciiCell</code> represent tile-grid content and colors.</li>
+        <li><code>MapGenerator.GenerateCave</code>: cellular automata cave smoothing.</li>
+        <li><code>MapGenerator.GenerateRoomsBSP</code>: binary-space partition room/corridor generation.</li>
+        <li><code>MapGenerator.GenerateDrunkardWalk</code>: random walk carving algorithm.</li>
+        <li><code>MapGenerator.PlaceCustomRoom</code>: template stamping for hand-authored room inserts.</li>
+      </ul>
+    </section>
+
+    <section id="scene" class="panel">
+      <h2>7. Scene and Sprite Systems</h2>
+      <h3>7.1 Scene graph</h3>
+      <ul>
+        <li><code>SceneTree</code> manages active scene roots and traversal/mutation operations.</li>
+        <li><code>SceneNode</code> provides hierarchical nodes with transform-like grid properties.</li>
+        <li><code>SceneDefinition</code> enables reusable named scene templates/instantiation.</li>
+        <li><code>BuiltinNodes</code> defines engine-provided node archetypes.</li>
+      </ul>
+
+      <h3>7.2 Sprites</h3>
+      <ul>
+        <li><code>SpriteDefinition</code>: glyph/tile metadata and rendering hints.</li>
+        <li><code>SpriteSheet</code>: atlas geometry and tile extraction metadata.</li>
+        <li><code>SpriteLibrary</code>: registry for sprite assets and lookups used by scene nodes.</li>
+      </ul>
+    </section>
+
+    <section id="networking" class="panel">
+      <h2>8. Multiplayer and Networking</h2>
+      <ul>
+        <li><code>NetworkSessionManager</code> supports host/join session behavior and message transport.</li>
+        <li><code>NetworkSession</code>, <code>NetworkMessage</code>, and <code>NetworkRole</code> model state and message contracts.</li>
+        <li>Node sets support peer sessions and dedicated client/server topologies.</li>
+        <li><code>GameExporter</code> can emit standalone Node.js and Python server runtimes for deployment.</li>
+      </ul>
+    </section>
+
+    <section id="export" class="panel">
+      <h2>9. Export Targets</h2>
+      <table>
+        <thead>
+          <tr><th>Target</th><th>Artifact</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Windows</td><td>Self-contained EXE</td><td>Generated runtime project + <code>dotnet publish</code> win-x64.</td></tr>
+          <tr><td>Linux</td><td>Self-contained binary</td><td>Generated runtime project + <code>dotnet publish</code> linux-x64.</td></tr>
+          <tr><td>HTML5</td><td><code>index.html</code></td><td>Single-file web runtime with embedded project data.</td></tr>
+          <tr><td>NodeJsServer</td><td><code>server.js</code></td><td>Dedicated server script (no npm dependencies required).</td></tr>
+          <tr><td>PythonServer</td><td><code>server.py</code></td><td>Dedicated server script using Python standard library.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="editor" class="panel">
+      <h2>10. Editor Application (WPF)</h2>
+      <p>The editor UI now includes:</p>
+      <ul>
+        <li>Project metadata editing and JSON open/save.</li>
+        <li>Map generation controls and ASCII map preview.</li>
+        <li>Graph creation/removal and start-graph assignment.</li>
+        <li>Node palette integration via <code>NodeFactory</code>.</li>
+        <li>Connection editor (source node/port to target node/port).</li>
+        <li>Graph execution and runtime log display.</li>
+        <li>Export target selection and artifact generation.</li>
+      </ul>
+    </section>
+
+    <section id="source-index" class="panel">
+      <h2>11. Complete Source Index</h2>
+
+      <h3>11.1 RogueEngine.Core/Engine</h3>
+      <table>
+        <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>GameExporter.cs</td><td>Cross-target export pipeline for native, HTML5, Node.js server, and Python server outputs.</td></tr>
+          <tr><td>MapGenerator.cs</td><td>Procedural map generation algorithms (cellular, BSP, drunkard, custom room stamping).</td></tr>
+          <tr><td>MorgueFileWriter.cs</td><td>Death/post-mortem reporting writer utilities.</td></tr>
+          <tr><td>NetworkSessionManager.cs</td><td>Session orchestration, messaging, and multiplayer runtime coordination.</td></tr>
+          <tr><td>NodeFactory.cs</td><td>Central registry of all built-in visual node definitions and node creation helpers.</td></tr>
+          <tr><td>OverworldManager.cs</td><td>Persistent location graph, travel, faction assignment, relation/time helpers.</td></tr>
+          <tr><td>PersistenceManager.cs</td><td>Game-state serialization, save-slot management, and global persistent store.</td></tr>
+          <tr><td>ScriptExecutor.cs</td><td>Graph interpreter/runtime evaluator and domain operation dispatcher.</td></tr>
+          <tr><td>ScriptGraphSerializer.cs</td><td>Project/graph JSON serializer/deserializer for authoring files.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>11.2 RogueEngine.Core/Models</h3>
+      <table>
+        <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>AsciiCell.cs</td><td>Single text-cell representation (glyph + colors).</td></tr>
+          <tr><td>AsciiMap.cs</td><td>2D map grid with bounds-safe indexers and region helpers.</td></tr>
+          <tr><td>Entity.cs</td><td>Runtime game entity data model.</td></tr>
+          <tr><td>GameProject.cs</td><td>Top-level project manifest containing graph set and display metadata.</td></tr>
+          <tr><td>MorgueFile.cs</td><td>Structured morgue/death-record model.</td></tr>
+          <tr><td>NetworkMessage.cs</td><td>Wire-level multiplayer message contract.</td></tr>
+          <tr><td>NetworkRole.cs</td><td>Session role enum for peer/server/client topologies.</td></tr>
+          <tr><td>NetworkSession.cs</td><td>Active network session state model.</td></tr>
+          <tr><td>NodeConnection.cs</td><td>Directed edge between source output and target input ports.</td></tr>
+          <tr><td>NodeDefinition.cs</td><td>Static node metadata used by palette/factory/runtime semantics.</td></tr>
+          <tr><td>NodePort.cs</td><td>Typed in/out node connector definition.</td></tr>
+          <tr><td>NodeType.cs</td><td>Full node operation enum for all supported visual-scripting nodes.</td></tr>
+          <tr><td>Overworld.cs</td><td>Overworld root data with current location and location collection.</td></tr>
+          <tr><td>OverworldLocation.cs</td><td>Persistent location data (map, exits, entities, key/value state).</td></tr>
+          <tr><td>PortDataType.cs</td><td>Port type system enum for graph wiring and runtime parsing.</td></tr>
+          <tr><td>ScriptGraph.cs</td><td>Node/connection container with graph editing helper methods.</td></tr>
+          <tr><td>ScriptNode.cs</td><td>Node instance with ports, layout coordinates, and custom properties.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>11.3 RogueEngine.Core/Scene</h3>
+      <table>
+        <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>BuiltinNodes.cs</td><td>Built-in scene node type definitions and default construction rules.</td></tr>
+          <tr><td>SceneDefinition.cs</td><td>Reusable scene/template definition contract.</td></tr>
+          <tr><td>SceneNode.cs</td><td>Hierarchical scene node data model and node behaviors.</td></tr>
+          <tr><td>SceneTree.cs</td><td>Scene graph manager and node query/mutation API.</td></tr>
+          <tr><td>SpriteDefinition.cs</td><td>Sprite metadata and render mode configuration.</td></tr>
+          <tr><td>SpriteLibrary.cs</td><td>Sprite registry/lookup service for scene rendering logic.</td></tr>
+          <tr><td>SpriteSheet.cs</td><td>Sprite-sheet atlas metadata and tile mapping model.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>11.4 RogueEngine (Editor App)</h3>
+      <table>
+        <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>App.xaml.cs</td><td>WPF application startup host.</td></tr>
+          <tr><td>AssemblyInfo.cs</td><td>Assembly metadata for desktop executable identity.</td></tr>
+          <tr><td>MainWindow.xaml.cs</td><td>Primary editor workflow UI logic and integration with core runtime APIs.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section id="tests" class="panel">
+      <h2>12. Test Coverage Map</h2>
+      <table>
+        <thead><tr><th>Test File</th><th>Subsystem Focus</th></tr></thead>
+        <tbody>
+          <tr><td>MapGeneratorTests.cs</td><td>Procedural generation algorithm correctness and deterministic behavior.</td></tr>
+          <tr><td>MorgueFileTests.cs</td><td>Morgue model/writer formatting and persistence behavior.</td></tr>
+          <tr><td>MultiplayerClientServerTests.cs</td><td>Dedicated and client/server network behavior.</td></tr>
+          <tr><td>PersistenceTests.cs</td><td>Save/load cycles and slot management behavior.</td></tr>
+          <tr><td>SceneTreeTests.cs</td><td>Scene graph operations, traversal, and node-state behavior.</td></tr>
+          <tr><td>ScriptExecutorTests.cs</td><td>Graph execution flow, node semantics, and result state.</td></tr>
+          <tr><td>ScriptGraphSerializerTests.cs</td><td>Project/graph serialization round-trip integrity.</td></tr>
+          <tr><td>ServerExportTests.cs</td><td>Server artifact export generation for backend targets.</td></tr>
+          <tr><td>SpriteTests.cs</td><td>Sprite registration/loading and runtime lookup behavior.</td></tr>
+        </tbody>
+      </table>
+      <p class="muted">For node-level behavior details, use this reference with NODES.md (node catalog) and the corresponding methods in ScriptExecutor.cs and NodeFactory.cs.</p>
+    </section>
+
+    <section id="runtime-foundation" class="panel">
+      <h2>13. Runtime Foundation (New)</h2>
+      <p>The engine now includes a runtime scaffold that moves beyond editor-only scripting toward proper engine architecture:</p>
+      <ul>
+        <li><strong>Engine loop:</strong> deterministic fixed-step loop via <code>Runtime/EngineLoop.cs</code> and <code>Runtime/IGameRuntime.cs</code>.</li>
+        <li><strong>Platform abstraction:</strong> host services behind <code>IEnginePlatform</code>, <code>IFileSystem</code>, <code>IInputSource</code>, and <code>IEngineLogger</code>.</li>
+        <li><strong>Input mapping:</strong> semantic action bindings via <code>Runtime/Input/InputActionMap.cs</code>.</li>
+        <li><strong>Gameplay loop integration:</strong> <code>RuntimeGameHost</code> now hosts <code>ScriptExecutor</code>, runs graph <code>Tick()</code> each fixed update, and dispatches action-map key presses into <code>OnKeyPress</code> event chains.</li>
+        <li><strong>Rendering contract:</strong> frontend-agnostic rendering interface + ASCII frame buffer (<code>Runtime/Rendering</code>).</li>
+        <li><strong>Custom font support:</strong> project-level custom font source via <code>GameProject.CustomFontPath</code>, embedded in HTML5 export as <code>@font-face</code> for local files or referenced URL fonts.</li>
+        <li><strong>ECS foundation:</strong> component world and simulation systems (<code>Runtime/Ecs</code>).</li>
+        <li><strong>Asset registry:</strong> GUID/path-based asset database with JSON round-trip (<code>Runtime/Content/AssetDatabase.cs</code>).</li>
+        <li><strong>Diagnostics:</strong> per-phase frame timing profiler (<code>Runtime/Diagnostics/FrameProfiler.cs</code>).</li>
+      </ul>
+      <p class="muted">This layer is intentionally foundational: it establishes stable engine primitives so gameplay/runtime features can be built consistently on top.</p>
+    </section>
+  </div>
+</body>
+</html>

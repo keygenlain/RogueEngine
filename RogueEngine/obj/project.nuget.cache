@@ -1,13 +1,13 @@
 {
   "version": 2,
-  "dgSpecHash": "3R4QpEZHzd8=",
+  "dgSpecHash": "74n72xXoM10=",
   "success": true,
-  "projectFilePath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine/RogueEngine.csproj",
+  "projectFilePath": "C:\\Users\\inotb\\OneDrive\\Documents\\RogueEngine\\RogueEngine\\rogueengine\\RogueEngine.csproj",
   "expectedPackageFiles": [
-    "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages/microsoft.netcore.app.ref/8.0.23/microsoft.netcore.app.ref.8.0.23.nupkg.sha512",
-    "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages/microsoft.windowsdesktop.app.ref/8.0.23/microsoft.windowsdesktop.app.ref.8.0.23.nupkg.sha512",
-    "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages/microsoft.aspnetcore.app.ref/8.0.23/microsoft.aspnetcore.app.ref.8.0.23.nupkg.sha512",
-    "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages/microsoft.netcore.app.host.linux-x64/8.0.23/microsoft.netcore.app.host.linux-x64.8.0.23.nupkg.sha512"
+    "C:\\Users\\inotb\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.24\\microsoft.netcore.app.ref.8.0.24.nupkg.sha512",
+    "C:\\Users\\inotb\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.24\\microsoft.windowsdesktop.app.ref.8.0.24.nupkg.sha512",
+    "C:\\Users\\inotb\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.24\\microsoft.aspnetcore.app.ref.8.0.24.nupkg.sha512",
+    "C:\\Users\\inotb\\.nuget\\packages\\microsoft.netcore.app.host.win-x64\\8.0.24\\microsoft.netcore.app.host.win-x64.8.0.24.nupkg.sha512"
   ],
   "logs": []
 }

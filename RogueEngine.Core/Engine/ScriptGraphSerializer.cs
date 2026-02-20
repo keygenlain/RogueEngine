@@ -73,7 +73,7 @@ public static class ScriptGraphSerializer
     private sealed record ProjectDto(
         string Name, string Author, string Version, string Description,
         int DisplayWidth, int DisplayHeight,
-        string FontFamily, int FontSizePx,
+        string FontFamily, string? CustomFontPath, int FontSizePx,
         Guid? StartGraphId,
         List<GraphDto> Graphs);
 
@@ -101,7 +101,7 @@ public static class ScriptGraphSerializer
     private static ProjectDto ProjectToDto(GameProject p) => new(
         p.Name, p.Author, p.Version, p.Description,
         p.DisplayWidth, p.DisplayHeight,
-        p.FontFamily, p.FontSizePx,
+        p.FontFamily, p.CustomFontPath, p.FontSizePx,
         p.StartGraphId,
         p.Graphs.Select(GraphToDto).ToList());
 
@@ -136,6 +136,7 @@ public static class ScriptGraphSerializer
             DisplayWidth = dto.DisplayWidth,
             DisplayHeight = dto.DisplayHeight,
             FontFamily = dto.FontFamily,
+            CustomFontPath = dto.CustomFontPath,
             FontSizePx = dto.FontSizePx,
             StartGraphId = dto.StartGraphId,
         };

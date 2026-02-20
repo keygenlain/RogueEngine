@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RogueEngine Editor Manual</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a2f;
+      --line: #2a3558;
+      --text: #e9eefc;
+      --muted: #a8b6de;
+      --accent: #53b5ff;
+      --good: #67d68f;
+      --warn: #ffd166;
+      --code: #0f1528;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Segoe UI, Inter, Arial, sans-serif;
+      line-height: 1.55;
+      color: var(--text);
+      background: linear-gradient(180deg, #0b1020 0%, #0d1326 100%);
+    }
+    .layout {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 16px;
+    }
+    nav {
+      position: sticky;
+      top: 12px;
+      align-self: start;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 14px;
+      max-height: calc(100vh - 24px);
+      overflow: auto;
+    }
+    nav h2 { margin: 0 0 8px 0; font-size: 16px; }
+    nav ol { margin: 0; padding-left: 18px; }
+    nav li { margin: 6px 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    main {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 22px;
+    }
+    h1, h2, h3 { line-height: 1.2; }
+    h1 { margin-top: 0; }
+    section { margin: 24px 0 34px 0; }
+    .callout {
+      border: 1px solid var(--line);
+      background: #101a33;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin: 10px 0;
+    }
+    .good { border-color: #2f6f49; background: #0e2318; }
+    .warn { border-color: #876b22; background: #2a220f; }
+    .muted { color: var(--muted); }
+    code {
+      font-family: Consolas, Menlo, monospace;
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 2px 6px;
+      color: #d6def7;
+    }
+    pre {
+      background: var(--code);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      overflow: auto;
+      margin: 10px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 8px;
+      vertical-align: top;
+      text-align: left;
+    }
+    th { background: #172446; }
+    .badge {
+      display: inline-block;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 2px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      margin-right: 6px;
+    }
+    .step {
+      border-left: 3px solid var(--accent);
+      padding: 8px 12px;
+      margin: 10px 0;
+      background: #111b34;
+    }
+    .tiny { font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <nav>
+      <h2>Manual Sections</h2>
+      <ol>
+        <li><a href="#start">Quick Start</a></li>
+        <li><a href="#mental-model">Editor Mental Model</a></li>
+        <li><a href="#layout">Screen Layout Deep Dive</a></li>
+        <li><a href="#runtime-upgrade">Runtime Upgrade Status</a></li>
+        <li><a href="#nodes">Predefined Node Palette</a></li>
+        <li><a href="#canvas">Blueprint-Style Canvas Controls</a></li>
+        <li><a href="#workflow">Daily Authoring Workflow</a></li>
+        <li><a href="#tutorial">Your First Roguelike (Full Tutorial)</a></li>
+        <li><a href="#debugging">Debugging and Troubleshooting</a></li>
+        <li><a href="#patterns">Best Practices & Patterns</a></li>
+        <li><a href="#faq">FAQ</a></li>
+      </ol>
+    </nav>
+
+    <main>
+      <h1>RogueEngine Editor Manual</h1>
+      <p class="muted">Version: workspace snapshot 2026-02-20 • Focus: practical use, graph authoring, and first-game build-out.</p>
+      <div>
+        <span class="badge">MVVM UI</span>
+        <span class="badge">Blueprint-style graph</span>
+        <span class="badge">Predefined node palette</span>
+        <span class="badge">Roguelike workflow</span>
+      </div>
+
+      <section id="start">
+        <h2>1) Quick Start</h2>
+        <ol>
+          <li>Run the editor app.</li>
+          <li>Open <strong>Visual Scripting Canvas</strong> tab.</li>
+          <li>Choose a node from the <code>Node</code> dropdown.</li>
+          <li>Click <code>Add Selected Node</code>.</li>
+          <li>Drag node cards to arrange graph flow.</li>
+          <li>Create links by dragging from an output pin (right) to an input pin (left).</li>
+          <li>Use right-click on node to duplicate/delete.</li>
+        </ol>
+        <div class="callout good">
+          If you only remember one thing: build left-to-right execution flow and keep each graph focused on one gameplay concern.
+        </div>
+      </section>
+
+      <section id="mental-model">
+        <h2>2) Editor Mental Model</h2>
+        <p>Think in layers:</p>
+        <ul>
+          <li><strong>Project</strong>: all maps/entities/graphs in one game.</li>
+          <li><strong>Graph</strong>: one behavior pipeline (e.g., start flow, procgen routine, combat utility).</li>
+          <li><strong>Node</strong>: one operation with typed input/output pins.</li>
+          <li><strong>Connection</strong>: directed data/exec flow between nodes.</li>
+        </ul>
+        <p>In practical terms, your job is to build robust pipelines by choosing nodes from the predefined palette, arranging them, and wiring clear flow paths.</p>
+      </section>
+
+      <section id="layout">
+        <h2>3) Screen Layout Deep Dive</h2>
+        <table>
+          <thead><tr><th>Area</th><th>What it does</th><th>How to use it effectively</th></tr></thead>
+          <tbody>
+            <tr><td>Top Menu + Toolbar</td><td>Save and run actions.</td><td>Use toolbar buttons for rapid iteration while graph editing.</td></tr>
+            <tr><td>Left Hierarchy</td><td>Project folders/maps/entities tree.</td><td>Treat this as your high-level project navigation map.</td></tr>
+            <tr><td>Center Tabs</td><td>ASCII viewport + scripting canvas.</td><td>Build logic in scripting tab, validate outcomes in ASCII tab.</td></tr>
+            <tr><td>Right Properties</td><td>Selected item fields (glyph/color/node/position).</td><td>Use to inspect and tune data after selecting graph elements.</td></tr>
+            <tr><td>Bottom Status + Console</td><td>Cursor coordinates and action log.</td><td>Watch this while connecting nodes and testing run/save commands.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="runtime-upgrade">
+        <h2>4) Runtime Upgrade Status</h2>
+        <p>The project now includes core runtime primitives needed for a proper engine architecture:</p>
+        <ul>
+          <li><code>EngineLoop</code> with fixed-step simulation/update cadence.</li>
+          <li>Platform abstractions for input, file system, and logging.</li>
+          <li>Input action map (key-to-action bindings, pressed/just-pressed states).</li>
+          <li>Renderer contract + ASCII frame buffer abstraction.</li>
+          <li>ECS-style world and simulation systems (movement/collision foundation).</li>
+          <li>Asset database with GUID tracking and JSON serialization.</li>
+          <li>Frame profiler for phase timing instrumentation.</li>
+          <li>Custom font pipeline for HTML5 export (<code>Custom Font Path / URL</code> in editor properties).</li>
+        </ul>
+        <div class="callout good">
+          This is the infrastructure layer. The next major step is integrating these runtime services directly with graph execution and gameplay packages.
+        </div>
+        <h3>Custom Font Usage</h3>
+        <ol>
+          <li>Set <code>Custom Font Path / URL</code> in the right-side properties panel.</li>
+          <li>Use a local <code>.ttf/.otf/.woff/.woff2</code> file path to embed font bytes directly in exported HTML.</li>
+          <li>Or use <code>https://...</code> / <code>data:</code> URL to reference a hosted font source.</li>
+          <li>Export to HTML5; generated page will include <code>@font-face</code> and prefer the custom font.</li>
+        </ol>
+      </section>
+
+      <section id="nodes">
+        <h2>4) Predefined Node Palette</h2>
+        <p>The node dropdown is populated from engine definitions (via <code>NodeFactory.AllDefinitions</code>). This ensures you only place valid, supported node types.</p>
+        <div class="step"><strong>Step A:</strong> Open the <code>Node</code> dropdown and choose a node (example: <code>Start</code>, <code>Create Map</code>, <code>Render Map</code>).</div>
+        <div class="step"><strong>Step B:</strong> Click <code>Add Selected Node</code>.</div>
+        <div class="step"><strong>Step C:</strong> Repeat and build your graph in functional stages (input → transform → output).</div>
+        <div class="callout warn">
+          Avoid adding every possible node up front. Add only what your next behavior step needs, then test.
+        </div>
+      </section>
+
+      <section id="canvas">
+        <h2>5) Blueprint-Style Canvas Controls</h2>
+        <h3>5.1 Node movement</h3>
+        <ul>
+          <li>Left-click and drag node card body.</li>
+          <li>Position updates live and are shown in node body and properties panel.</li>
+        </ul>
+
+        <h3>5.2 Linking nodes</h3>
+        <ul>
+          <li>Mouse-down on right/output pin.</li>
+          <li>Drag to target node’s left/input pin.</li>
+          <li>Mouse-up to commit link (duplicates are ignored).</li>
+          <li>Dashed preview wire appears while dragging.</li>
+        </ul>
+
+        <h3>5.3 Viewport navigation</h3>
+        <ul>
+          <li>Middle mouse drag = pan.</li>
+          <li>Mouse wheel = zoom in/out around cursor.</li>
+        </ul>
+
+        <h3>5.4 Node context actions</h3>
+        <ul>
+          <li>Right-click node → <code>Duplicate Node</code>.</li>
+          <li>Right-click node → <code>Delete Node</code> (and auto-remove attached links).</li>
+        </ul>
+      </section>
+
+      <section id="workflow">
+        <h2>6) Recommended Daily Authoring Workflow</h2>
+        <ol>
+          <li>Create a tiny target behavior (one sentence).</li>
+          <li>Select only the nodes needed for that behavior from predefined list.</li>
+          <li>Arrange left-to-right and wire the minimal valid path.</li>
+          <li>Run and inspect console log.</li>
+          <li>Refactor by duplication and branch tests.</li>
+          <li>Only then add complexity (state, loops, persistence, networking).</li>
+        </ol>
+      </section>
+
+      <section id="tutorial">
+        <h2>7) Your First Roguelike (Full Tutorial)</h2>
+        <p>This tutorial is intentionally detailed and structured for a first complete playable loop: map generation, player placement, basic movement/event loop scaffolding, and output.</p>
+
+        <h3>7.1 Goal</h3>
+        <p>Build a minimal ASCII roguelike loop that:</p>
+        <ul>
+          <li>Generates a dungeon map</li>
+          <li>Spawns a player</li>
+          <li>Renders map + player</li>
+          <li>Handles tick/update flow skeleton</li>
+        </ul>
+
+        <h3>7.2 Graph planning before placing nodes</h3>
+        <pre>Start
+  -> Create Map
+  -> Generate Rooms (BSP) or Cave
+  -> Spawn Entity (Player)
+  -> Render Map
+  -> OnTick / OnKeyPress branch (next iteration)
+</pre>
+
+        <h3>7.3 Build it step-by-step</h3>
+
+        <h4>Step 1: Create your startup chain</h4>
+        <div class="step">Add these nodes from the predefined list: <code>Start</code>, <code>Create Map</code>, <code>Rooms (BSP)</code>, <code>Spawn Entity</code>, <code>Render Map</code>.</div>
+        <div class="step">Arrange them left-to-right in a single row.</div>
+        <div class="step">Connect execution flow output-to-input in that same order.</div>
+
+        <h4>Step 2: Configure map generation</h4>
+        <ul>
+          <li><code>Create Map</code>: width 80, height 25 (classic terminal proportions).</li>
+          <li><code>Rooms (BSP)</code>: min room 4, max room 12 to start.</li>
+          <li>If map feels too tight, increase width first, then tweak room sizes.</li>
+        </ul>
+
+        <h4>Step 3: Configure player spawn</h4>
+        <ul>
+          <li><code>Spawn Entity</code> name = <code>Player</code></li>
+          <li>glyph = <code>@</code></li>
+          <li>color = bright foreground (e.g. white/yellow)</li>
+          <li>spawn near center or known floor coordinate</li>
+        </ul>
+
+        <h4>Step 4: First run sanity check</h4>
+        <ol>
+          <li>Press toolbar <code>Play</code>.</li>
+          <li>Confirm console shows run events, node additions, and link creation history.</li>
+          <li>Verify graph contains exactly one start path and no accidental duplicate links.</li>
+        </ol>
+
+        <h4>Step 5: Add an input skeleton</h4>
+        <p>Add <code>OnKeyPress</code> and connect to a branch or movement chain placeholder.</p>
+        <ul>
+          <li>For now, log key events to validate your event path.</li>
+          <li>Then introduce <code>MoveEntity</code> using directional branches.</li>
+        </ul>
+
+        <h4>Step 6: Add progression safety</h4>
+        <ul>
+          <li>Create a fallback flow if map generation fails.</li>
+          <li>Keep all movement constrained to walkable cells.</li>
+          <li>Add simple UI text via <code>PrintText</code> for health/turn/debug.</li>
+        </ul>
+
+        <h4>Step 7: Save/load basics</h4>
+        <p>Add <code>Save Game</code> and <code>Load Game</code> nodes later in a utility graph and call them from menu/input actions.</p>
+
+        <h3>7.4 What “done” looks like</h3>
+        <ul>
+          <li>Startup graph always creates and renders a map.</li>
+          <li>Player is visible as <code>@</code>.</li>
+          <li>At least one input path modifies game state predictably.</li>
+          <li>Console logs are clean and meaningful.</li>
+        </ul>
+
+        <h3>7.5 Next milestones after tutorial</h3>
+        <ol>
+          <li>Add enemies and simple AI tick behavior.</li>
+          <li>Add combat nodes and death handling.</li>
+          <li>Add overworld locations and travel.</li>
+          <li>Add persistence and export target.</li>
+        </ol>
+      </section>
+
+      <section id="debugging">
+        <h2>8) Debugging and Troubleshooting</h2>
+        <h3>8.1 Connection won’t create</h3>
+        <ul>
+          <li>Ensure drag starts from output (right pin) and ends at input (left pin).</li>
+          <li>Check you are not creating an existing duplicate edge.</li>
+          <li>Avoid self-loop until intentional and tested.</li>
+        </ul>
+
+        <h3>8.2 Node disappears</h3>
+        <ul>
+          <li>You may have panned away; middle-mouse pan back.</li>
+          <li>Zoom out with mouse wheel.</li>
+          <li>If deleted, re-add from predefined list.</li>
+        </ul>
+
+        <h3>8.3 Graph is hard to manage</h3>
+        <ul>
+          <li>Split into smaller concern-specific graphs.</li>
+          <li>Use duplicate-node only as a temporary staging aid.</li>
+          <li>Keep consistent left-to-right architecture.</li>
+        </ul>
+      </section>
+
+      <section id="patterns">
+        <h2>9) Best Practices & Patterns</h2>
+        <ul>
+          <li><strong>One responsibility per graph</strong>: startup, combat, UI, procgen, persistence.</li>
+          <li><strong>Name intentionally</strong>: prefer semantic labels over generic node clusters.</li>
+          <li><strong>Instrument early</strong>: console log transitions and edge cases.</li>
+          <li><strong>Test shortest path first</strong>: minimal graph, then iterate.</li>
+          <li><strong>Use palette discipline</strong>: add nodes from predefined list only when needed.</li>
+        </ul>
+      </section>
+
+      <section id="faq">
+        <h2>10) FAQ</h2>
+        <h3>Can I add every node and connect later?</h3>
+        <p>You can, but you should not. It slows debugging and increases accidental invalid flows.</p>
+
+        <h3>Should I use Cave or BSP for first game?</h3>
+        <p>BSP is usually easier to reason about for first playtest loops; cave maps are great later for variety.</p>
+
+        <h3>How close is this to UE5 Blueprint UX?</h3>
+        <p>Current implementation includes node drag, wire drag-connect, pan/zoom, and context actions. Advanced features like marquee multi-select, comment boxes, reroute nodes, and shortcut-rich graph editing are future enhancements.</p>
+
+        <div class="callout tiny">
+          Cross-reference this with <a href="engine-reference.html">engine-reference.html</a> and <a href="../NODES.md">NODES.md</a> for full node catalog and source-level system mapping.
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

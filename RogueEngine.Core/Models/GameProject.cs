@@ -36,6 +36,13 @@ public sealed class GameProject
     /// </summary>
     public string FontFamily { get; set; } = "Courier New";
 
+    /// <summary>
+    /// Optional custom font source used by HTML5 export.
+    /// Supports local file paths (embedded as base64) and http/https/data URLs.
+    /// When set, the exported page will register an <c>@font-face</c> and prefer it.
+    /// </summary>
+    public string? CustomFontPath { get; set; }
+
     /// <summary>Font size (in pixels) for each character in the HTML5 export.</summary>
     public int FontSizePx { get; set; } = 16;
 
