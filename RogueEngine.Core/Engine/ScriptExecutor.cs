@@ -45,6 +45,7 @@ public sealed class ScriptExecutor
     private int _lastMenuSelection = 0;
     private int _waitTicksRemaining;
     private bool _inCutscene;
+    private string _pendingKeyInput = string.Empty;
 
     // Tracks nodes currently in the execution call stack to detect recursion.
     private readonly HashSet<Guid> _inProgress = [];
@@ -168,6 +169,13 @@ public sealed class ScriptExecutor
     /// Sets the menu selection index (used by the WPF layer when a menu returns).
     /// </summary>
     public void SetMenuSelection(int index) => _lastMenuSelection = index;
+
+    /// <summary>
+    /// Injects a key press to be consumed by the next
+    /// <see cref="NodeType.WaitForInput"/> node encountered during execution.
+    /// </summary>
+    /// <param name="key">The key name or character string (e.g. "ArrowUp", "a").</param>
+    public void InjectKeyPress(string key) => _pendingKeyInput = key ?? string.Empty;
 
     // ── Execution helpers ──────────────────────────────────────────────────────
 
@@ -1181,6 +1189,134 @@ public sealed class ScriptExecutor
                 // Event node — fired externally when player HP drops to 0.
                 break;
 
+            // ── Roguelike Core ─────────────────────────────────────────────────
+            case NodeType.ComputeFOV:
+            {
+                var m       = ResolveMap(node, "Map") ?? _activeMap;
+                var ox      = ResolveInt(node, "OriginX");
+                var oy      = ResolveInt(node, "OriginY");
+                var radius  = ResolveInt(node, "Radius");
+                if (node.Properties.TryGetValue("Radius", out var rProp) && radius == 0)
+                    radius = ParseInt(rProp);
+                var visible = ComputeFovTiles(m, ox, oy, radius);
+                SetPortValue(node, "VisibleTiles", visible);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.FindPathAStar:
+            {
+                var m   = ResolveMap(node, "Map") ?? _activeMap;
+                var sx  = ResolveInt(node, "StartX");
+                var sy  = ResolveInt(node, "StartY");
+                var ex  = ResolveInt(node, "EndX");
+                var ey  = ResolveInt(node, "EndY");
+                var (nextX, nextY, success) = FindPathAStarStep(m, sx, sy, ex, ey);
+                SetPortValue(node, "NextStepX", nextX);
+                SetPortValue(node, "NextStepY", nextY);
+                SetPortValue(node, "Success", success);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.GetEntityStat:
+            {
+                var ent      = ResolveAny(node, "Entity") as Entity;
+                var statName = ResolveString(node, "StatName");
+                object? value = null;
+                if (ent is not null && ent.Properties.TryGetValue(statName, out var raw))
+                    value = raw;
+                SetPortValue(node, "Value", value);
+                break;
+            }
+
+            case NodeType.WaitForInput:
+            {
+                var key = _pendingKeyInput;
+                _pendingKeyInput = string.Empty;
+                _log.Add($"[WAIT_FOR_INPUT] Key: {(key.Length > 0 ? key : "(none)")}");
+                SetPortValue(node, "Key", key);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.CheckEntityBump:
+            {
+                var mover  = ResolveAny(node, "Entity") as Entity;
+                var dx     = ResolveInt(node, "DX");
+                var dy     = ResolveInt(node, "DY");
+                Entity? target = null;
+                if (mover is not null)
+                {
+                    var tx = mover.X + dx;
+                    var ty = mover.Y + dy;
+                    target = _entities.FirstOrDefault(e => e != mover && e.X == tx && e.Y == ty);
+                }
+                SetPortValue(node, "Blocked", target is not null);
+                SetPortValue(node, "Target", target);
+                break;
+            }
+
+            case NodeType.GetEntityType:
+            {
+                var ent = ResolveAny(node, "Entity") as Entity;
+                var entityType = ent is not null
+                    ? ent.Properties.GetValueOrDefault("Type", string.Empty)
+                    : string.Empty;
+                SetPortValue(node, "EntityType", entityType);
+                break;
+            }
+
+            case NodeType.SetEntityStat:
+            {
+                var ent      = ResolveAny(node, "Entity") as Entity;
+                var statName = ResolveString(node, "StatName");
+                var value    = ResolveAny(node, "Value");
+                if (ent is not null && statName.Length > 0)
+                    ent.Properties[statName] = value is IFormattable fmt
+                        ? fmt.ToString(null, System.Globalization.CultureInfo.InvariantCulture)
+                        : value?.ToString() ?? string.Empty;
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.ModifyEntityStat:
+            {
+                var ent      = ResolveAny(node, "Entity") as Entity;
+                var statName = ResolveString(node, "StatName");
+                var amount   = ResolveFloat(node, "Amount");
+                var op       = node.Properties.GetValueOrDefault("Operator", "+");
+                float newValue = 0f;
+                if (ent is not null && statName.Length > 0)
+                {
+                    ent.Properties.TryGetValue(statName, out var existing);
+                    var current = ParseFloat(existing ?? "0");
+                    newValue = op switch
+                    {
+                        "+" => current + amount,
+                        "-" => current - amount,
+                        "*" => current * amount,
+                        "/" => amount == 0f ? current : current / amount,
+                        _   => current,
+                    };
+                    ent.Properties[statName] = newValue.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture);
+                }
+                SetPortValue(node, "NewValue", newValue);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.GetEntitiesAtTile:
+            {
+                var tx = ResolveInt(node, "X");
+                var ty = ResolveInt(node, "Y");
+                var matches = _entities.Where(e => e.X == tx && e.Y == ty).ToList();
+                SetPortValue(node, "Count", matches.Count);
+                SetPortValue(node, "First", matches.Count > 0 ? matches[0] : null);
+                break;
+            }
+
             default:
                 _log.Add($"[WARN] Unhandled node type: {node.Type}");
                 break;
@@ -1345,6 +1481,159 @@ public sealed class ScriptExecutor
         if (int.TryParse(hex.TrimStart('#'), System.Globalization.NumberStyles.HexNumber,
             null, out var v)) return v;
         return 0xFFFFFF;
+    }
+
+    // ── Roguelike Core algorithms ──────────────────────────────────────────────
+
+    /// <summary>
+    /// Computes a field-of-view using recursive shadowcasting.
+    /// Returns a list of visible tile coordinates as "x,y" strings.
+    /// </summary>
+    private static List<string> ComputeFovTiles(AsciiMap? map, int ox, int oy, int radius)
+    {
+        var visible = new HashSet<(int, int)> { (ox, oy) };
+
+        if (map is null || radius <= 0)
+            return visible.Select(p => $"{p.Item1},{p.Item2}").ToList();
+
+        // 8 octants × recursive shadowcasting
+        for (var octant = 0; octant < 8; octant++)
+            CastLight(map, visible, ox, oy, radius, 1, 1.0f, 0.0f, octant);
+
+        return visible.Select(p => $"{p.Item1},{p.Item2}").ToList();
+    }
+
+    private static void CastLight(
+        AsciiMap map, HashSet<(int, int)> visible,
+        int ox, int oy, int radius,
+        int row, float startSlope, float endSlope, int octant)
+    {
+        if (startSlope < endSlope) return;
+
+        // Octant transformation vectors
+        // (xx, xy, yx, yy) for each of the 8 octants
+        ReadOnlySpan<(int xx, int xy, int yx, int yy)> transforms =
+        [
+            ( 1,  0,  0,  1),
+            ( 0,  1,  1,  0),
+            ( 0, -1,  1,  0),
+            (-1,  0,  0,  1),
+            (-1,  0,  0, -1),
+            ( 0, -1, -1,  0),
+            ( 0,  1, -1,  0),
+            ( 1,  0,  0, -1),
+        ];
+
+        var (xx, xy, yx, yy) = transforms[octant];
+        var blocked = false;
+        float newStart = 0f;
+
+        for (var d = row; d <= radius && !blocked; d++)
+        {
+            for (var dx = -d; dx <= 0; dx++)
+            {
+                var dy = -d;
+                var lSlope = (dx - 0.5f) / (dy + 0.5f);
+                var rSlope = (dx + 0.5f) / (dy - 0.5f);
+
+                if (startSlope < rSlope) continue;
+                if (endSlope > lSlope) break;
+
+                var tx = ox + dx * xx + dy * xy;
+                var ty = oy + dx * yx + dy * yy;
+
+                if (!map.IsInBounds(tx, ty)) continue;
+
+                if (dx * dx + dy * dy <= radius * radius)
+                    visible.Add((tx, ty));
+
+                bool isWall = map[tx, ty].Character == '#';
+
+                if (blocked)
+                {
+                    if (isWall)
+                    {
+                        newStart = rSlope;
+                    }
+                    else
+                    {
+                        blocked = false;
+                        startSlope = newStart;
+                    }
+                }
+                else if (isWall && d < radius)
+                {
+                    blocked = true;
+                    CastLight(map, visible, ox, oy, radius, d + 1, startSlope, lSlope, octant);
+                    newStart = rSlope;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Finds the next step on the shortest path from (sx,sy) to (ex,ey) on
+    /// <paramref name="map"/> using A*, treating '#' tiles as walls.
+    /// Returns (nextX, nextY, success).
+    /// </summary>
+    private static (int nextX, int nextY, bool success) FindPathAStarStep(
+        AsciiMap? map, int sx, int sy, int ex, int ey)
+    {
+        if (map is null || !map.IsInBounds(sx, sy) || !map.IsInBounds(ex, ey))
+            return (sx, sy, false);
+
+        if (sx == ex && sy == ey)
+            return (sx, sy, true);
+
+        static float Heuristic(int ax, int ay, int bx, int by) =>
+            MathF.Abs(ax - bx) + MathF.Abs(ay - by);
+
+        var open   = new SortedSet<(float f, int x, int y)>(Comparer<(float, int, int)>.Create(
+            (a, b) => a.Item1 != b.Item1 ? a.Item1.CompareTo(b.Item1)
+                    : a.Item2 != b.Item2 ? a.Item2.CompareTo(b.Item2)
+                    : a.Item3.CompareTo(b.Item3)));
+        var gScore = new Dictionary<(int, int), float>();
+        var parent = new Dictionary<(int, int), (int, int)>();
+
+        gScore[(sx, sy)] = 0f;
+        open.Add((Heuristic(sx, sy, ex, ey), sx, sy));
+
+        Span<(int dx, int dy)> dirs = [(0, 1), (0, -1), (1, 0), (-1, 0)];
+
+        while (open.Count > 0)
+        {
+            var current = open.Min;
+            open.Remove(current);
+            var (_, cx, cy) = current;
+
+            if (cx == ex && cy == ey)
+            {
+                // Reconstruct path and return first step
+                var step = (cx, cy);
+                while (parent.TryGetValue(step, out var prev) && prev != (sx, sy))
+                    step = prev;
+                return (step.Item1, step.Item2, true);
+            }
+
+            var cg = gScore[(cx, cy)];
+            foreach (var (dx, dy) in dirs)
+            {
+                var nx = cx + dx;
+                var ny = cy + dy;
+                if (!map.IsInBounds(nx, ny)) continue;
+                if (map[nx, ny].Character == '#') continue;
+
+                var ng = cg + 1f;
+                if (!gScore.TryGetValue((nx, ny), out var existing) || ng < existing)
+                {
+                    gScore[(nx, ny)] = ng;
+                    parent[(nx, ny)] = (cx, cy);
+                    open.Add((ng + Heuristic(nx, ny, ex, ey), nx, ny));
+                }
+            }
+        }
+
+        return (sx, sy, false); // No path found
     }
 
     // ── Result building ────────────────────────────────────────────────────────

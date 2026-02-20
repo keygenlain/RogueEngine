@@ -18,3 +18,5 @@ Thumbs.db
 
 # Export output
 export/
+bin/
+obj/
