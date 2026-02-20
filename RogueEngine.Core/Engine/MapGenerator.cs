@@ -192,6 +192,60 @@ public static class MapGenerator
         }
     }
 
+    // ── Custom room placement ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Stamps a custom room layout string onto <paramref name="map"/> at the
+    /// given top-left corner (<paramref name="originX"/>, <paramref name="originY"/>).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The <paramref name="layout"/> is a multiline string where each line
+    /// represents a row of cells.  Recognised characters:
+    /// <list type="bullet">
+    ///   <item><c>#</c> – wall cell</item>
+    ///   <item><c>.</c> – floor cell</item>
+    ///   <item>Any other printable character – floor cell whose glyph matches
+    ///   the character (useful for placing markers such as
+    ///   <c>'@'</c>, <c>'+'</c>, etc.).</item>
+    ///   <item>Space / NUL – cell is left unchanged (transparent).</item>
+    /// </list>
+    /// Rows shorter than the widest row are padded with transparent cells.
+    /// Cells that fall outside the map bounds are silently skipped.
+    /// </para>
+    /// </remarks>
+    /// <param name="map">The map to stamp the room onto.</param>
+    /// <param name="layout">The multiline room template string.</param>
+    /// <param name="originX">Column offset of the room's top-left corner.</param>
+    /// <param name="originY">Row offset of the room's top-left corner.</param>
+    public static void PlaceCustomRoom(AsciiMap map, string layout, int originX, int originY)
+    {
+        ArgumentNullException.ThrowIfNull(map);
+        if (string.IsNullOrEmpty(layout)) return;
+
+        var rows = layout.Split('\n');
+        for (var row = 0; row < rows.Length; row++)
+        {
+            var line = rows[row];
+            for (var col = 0; col < line.Length; col++)
+            {
+                var ch = line[col];
+                if (ch is ' ' or '\0') continue; // transparent
+
+                var mx = originX + col;
+                var my = originY + row;
+                if (!map.IsInBounds(mx, my)) continue;
+
+                map[mx, my] = ch switch
+                {
+                    '#' => WallCell(),
+                    '.' => FloorCell(),
+                    _   => new AsciiCell { Character = ch, ForegroundColor = 0xFFFFFF, BackgroundColor = 0x000000 },
+                };
+            }
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────────────────────────────
 
     private static bool IsBorder(int x, int y, AsciiMap map) =>

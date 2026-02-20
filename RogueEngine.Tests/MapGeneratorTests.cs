@@ -117,4 +117,63 @@ public sealed class MapGeneratorTests
         clone[2, 2].Character = 'X';
         Assert.Equal('@', original[2, 2].Character);
     }
+
+    // ── PlaceCustomRoom ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void PlaceCustomRoom_StampsLayoutAtOrigin()
+    {
+        var map = new AsciiMap(20, 20);
+        const string layout = "###\n#.#\n###";
+
+        MapGenerator.PlaceCustomRoom(map, layout, 2, 3);
+
+        Assert.Equal('#', map[2, 3].Character);
+        Assert.Equal('.', map[3, 4].Character);
+        Assert.Equal('#', map[4, 5].Character);
+    }
+
+    [Fact]
+    public void PlaceCustomRoom_TransparentSpaceIsSkipped()
+    {
+        var map = new AsciiMap(10, 10);
+        map[0, 0] = new AsciiCell { Character = '@' };
+
+        // Space in layout means "leave existing cell alone"
+        MapGenerator.PlaceCustomRoom(map, " ", 0, 0);
+
+        Assert.Equal('@', map[0, 0].Character);
+    }
+
+    [Fact]
+    public void PlaceCustomRoom_OutOfBoundsCellsAreIgnored()
+    {
+        var map = new AsciiMap(5, 5);
+        // Origin at (-1, -1): cells at column/row -1 of the layout are out of bounds.
+        // Layout row 1, col 1 ('.') maps to map[(-1+1), (-1+1)] = (0, 0).
+        MapGenerator.PlaceCustomRoom(map, "###\n#.#\n###", -1, -1);
+
+        // No exception, and the in-bounds '.' cell landed at (0, 0).
+        Assert.Equal('.', map[0, 0].Character);
+    }
+
+    [Fact]
+    public void PlaceCustomRoom_EmptyLayoutDoesNothing()
+    {
+        var map = new AsciiMap(5, 5);
+        map[0, 0] = new AsciiCell { Character = 'X' };
+
+        MapGenerator.PlaceCustomRoom(map, "", 0, 0);
+
+        Assert.Equal('X', map[0, 0].Character);
+    }
+
+    [Fact]
+    public void PlaceCustomRoom_CustomCharacter_PreservesGlyph()
+    {
+        var map = new AsciiMap(10, 10);
+        MapGenerator.PlaceCustomRoom(map, "+", 3, 3);
+
+        Assert.Equal('+', map[3, 3].Character);
+    }
 }

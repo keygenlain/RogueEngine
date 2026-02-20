@@ -50,6 +50,9 @@ public sealed class ScriptExecutor
     // Tracks nodes currently in the execution call stack to detect recursion.
     private readonly HashSet<Guid> _inProgress = [];
 
+    // Custom room templates registered by DefineCustomRoom nodes.
+    private readonly Dictionary<string, string> _customRooms = [];
+
     // ── Sub-systems ────────────────────────────────────────────────────────────
 
     /// <summary>
@@ -119,8 +122,10 @@ public sealed class ScriptExecutor
         _entities.Clear();
         _activeMap = null;
         _inProgress.Clear();
+        _customRooms.Clear();
 
-        var start = _graph.FindStartNode();
+        var start = _graph.FindStartNode()
+            ?? _graph.Nodes.FirstOrDefault(n => n.Type == NodeType.CustomProcgenStart);
         if (start is null)
         {
             _log.Add("[WARN] Graph has no Start node.");
@@ -1317,6 +1322,235 @@ public sealed class ScriptExecutor
                 break;
             }
 
+            // ── Map & Procgen: Custom Rooms ────────────────────────────────────
+            case NodeType.DefineCustomRoom:
+            {
+                var name   = node.Properties.GetValueOrDefault("Name", "room1");
+                var layout = node.Properties.GetValueOrDefault("Layout", string.Empty);
+                if (!string.IsNullOrEmpty(name))
+                    _customRooms[name] = layout;
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.PlaceCustomRoom:
+            {
+                var m = ResolveMap(node, "Map") ?? _activeMap;
+                if (m is null) { _log.Add("[ERROR] PlaceCustomRoom: no map."); break; }
+                var roomName = node.Properties.GetValueOrDefault("RoomName", string.Empty);
+                if (!_customRooms.TryGetValue(roomName, out var layout))
+                {
+                    _log.Add($"[ERROR] PlaceCustomRoom: room '{roomName}' not found.");
+                    break;
+                }
+                var px = ResolveInt(node, "X");
+                var py = ResolveInt(node, "Y");
+                MapGenerator.PlaceCustomRoom(m, layout, px, py);
+                _activeMap = m;
+                SetPortValue(node, "Map", m);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.CustomProcgenStart:
+            {
+                SetPortValue(node, "Map",  _activeMap);
+                SetPortValue(node, "Seed", _rng.Next());
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            // ── Battle System ──────────────────────────────────────────────────
+            case NodeType.RollDice:
+            {
+                var count = ResolveInt(node, "Count");
+                if (count == 0) count = ParseInt(node.Properties.GetValueOrDefault("Count", "1"));
+                var sides = ResolveInt(node, "Sides");
+                if (sides == 0) sides = ParseInt(node.Properties.GetValueOrDefault("Sides", "6"));
+                count = Math.Max(1, count);
+                sides = Math.Max(2, sides);
+                var total = 0;
+                for (var i = 0; i < count; i++)
+                    total += _rng.Next(1, sides + 1);
+                SetPortValue(node, "Result", total);
+                break;
+            }
+
+            case NodeType.ApplyDamage:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                if (entity is null) { _log.Add("[ERROR] ApplyDamage: no entity."); break; }
+                var amount = ResolveFloat(node, "Amount");
+                var hp = ParseFloat(entity.Properties.GetValueOrDefault("HP", "0"));
+                hp = Math.Max(0f, hp - amount);
+                entity.Properties["HP"] = hp.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                SetPortValue(node, "NewHP",  hp);
+                SetPortValue(node, "IsDead", hp <= 0f);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.HealEntity:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                if (entity is null) { _log.Add("[ERROR] HealEntity: no entity."); break; }
+                var amount = ResolveFloat(node, "Amount");
+                var hp    = ParseFloat(entity.Properties.GetValueOrDefault("HP", "0"));
+                var maxHp = ParseFloat(entity.Properties.GetValueOrDefault("MaxHP", "100"));
+                hp = Math.Min(maxHp, hp + amount);
+                entity.Properties["HP"] = hp.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                SetPortValue(node, "NewHP", hp);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.IsEntityDead:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                var hp     = entity is null ? 0f : ParseFloat(entity.Properties.GetValueOrDefault("HP", "0"));
+                SetPortValue(node, "IsDead", hp <= 0f);
+                break;
+            }
+
+            case NodeType.StartCombat:
+            {
+                _log.Add("[Battle] Combat started.");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.EndTurn:
+            {
+                _log.Add("[Battle] Turn ended.");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.GetInitiative:
+            {
+                var entity   = ResolveAny(node, "Entity") as Entity;
+                var modifier = ParseInt(node.Properties.GetValueOrDefault("Modifier", "0"));
+                var roll     = _rng.Next(1, 21) + modifier;
+                if (entity is not null)
+                    entity.Properties["Initiative"] = roll.ToString();
+                SetPortValue(node, "Initiative", roll);
+                break;
+            }
+
+            // ── RPG System ─────────────────────────────────────────────────────
+            case NodeType.AddExperience:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                if (entity is null) { _log.Add("[ERROR] AddExperience: no entity."); break; }
+                var amount       = ResolveFloat(node, "Amount");
+                var xpThreshold  = ParseFloat(node.Properties.GetValueOrDefault("XPToNextLevel", "100"));
+                var xp           = ParseFloat(entity.Properties.GetValueOrDefault("XP", "0")) + amount;
+                var level        = ParseInt(entity.Properties.GetValueOrDefault("Level", "1"));
+                var leveledUp    = false;
+                while (xp >= xpThreshold && xpThreshold > 0f)
+                {
+                    xp -= xpThreshold;
+                    level++;
+                    leveledUp = true;
+                }
+                entity.Properties["XP"]    = xp.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                entity.Properties["Level"] = level.ToString();
+                SetPortValue(node, "NewXP",     xp);
+                SetPortValue(node, "LeveledUp", leveledUp);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.GetLevel:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                var level  = entity is null ? 1 : ParseInt(entity.Properties.GetValueOrDefault("Level", "1"));
+                SetPortValue(node, "Level", level);
+                break;
+            }
+
+            case NodeType.AddToInventory:
+            {
+                var entity   = ResolveAny(node, "Entity") as Entity;
+                if (entity is null) { _log.Add("[ERROR] AddToInventory: no entity."); break; }
+                var itemName = ResolveString(node, "ItemName");
+                var inv      = entity.Properties.GetValueOrDefault("Inventory", string.Empty);
+                entity.Properties["Inventory"] = string.IsNullOrEmpty(inv)
+                    ? itemName
+                    : inv + "," + itemName;
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.RemoveFromInventory:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                if (entity is null) { _log.Add("[ERROR] RemoveFromInventory: no entity."); break; }
+                var idx  = ResolveInt(node, "Index");
+                var items = GetInventoryList(entity);
+                var removed = string.Empty;
+                if (idx >= 0 && idx < items.Count)
+                {
+                    removed = items[idx];
+                    items.RemoveAt(idx);
+                    entity.Properties["Inventory"] = string.Join(",", items);
+                }
+                SetPortValue(node, "ItemName", removed);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.GetInventoryItem:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                var idx    = ResolveInt(node, "Index");
+                var items  = entity is null ? [] : GetInventoryList(entity);
+                SetPortValue(node, "ItemName",
+                    idx >= 0 && idx < items.Count ? items[idx] : string.Empty);
+                break;
+            }
+
+            case NodeType.GetInventorySize:
+            {
+                var entity = ResolveAny(node, "Entity") as Entity;
+                var count  = entity is null ? 0 : GetInventoryList(entity).Count;
+                SetPortValue(node, "Count", count);
+                break;
+            }
+
+            case NodeType.EquipItem:
+            {
+                var entity   = ResolveAny(node, "Entity") as Entity;
+                if (entity is null) { _log.Add("[ERROR] EquipItem: no entity."); break; }
+                var itemName = ResolveString(node, "ItemName");
+                var slot     = node.Properties.GetValueOrDefault("Slot", "weapon");
+                var slotKey  = $"Equip_{slot}";
+                // Return the previous occupant to inventory first.
+                if (entity.Properties.TryGetValue(slotKey, out var prev) && !string.IsNullOrEmpty(prev))
+                {
+                    var inv = entity.Properties.GetValueOrDefault("Inventory", string.Empty);
+                    entity.Properties["Inventory"] = string.IsNullOrEmpty(inv) ? prev : inv + "," + prev;
+                }
+                // Remove the item from inventory.
+                var invList = GetInventoryList(entity);
+                invList.Remove(itemName);
+                entity.Properties["Inventory"] = string.Join(",", invList);
+                entity.Properties[slotKey]     = itemName;
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            case NodeType.GetEquippedItem:
+            {
+                var entity  = ResolveAny(node, "Entity") as Entity;
+                var slot    = node.Properties.GetValueOrDefault("Slot", "weapon");
+                var slotKey = $"Equip_{slot}";
+                var item    = entity is null ? string.Empty
+                    : entity.Properties.GetValueOrDefault(slotKey, string.Empty);
+                SetPortValue(node, "ItemName", item);
+                break;
+            }
+
             default:
                 _log.Add($"[WARN] Unhandled node type: {node.Type}");
                 break;
@@ -1465,6 +1699,18 @@ public sealed class ScriptExecutor
     }
 
     // ── Parsing helpers ────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Returns the entity's inventory as a mutable list.
+    /// The list is split from and written back to <c>entity.Properties["Inventory"]</c>
+    /// as a comma-separated string.
+    /// </summary>
+    private static List<string> GetInventoryList(Entity entity)
+    {
+        if (!entity.Properties.TryGetValue("Inventory", out var raw) || string.IsNullOrEmpty(raw))
+            return [];
+        return [.. raw.Split(',', StringSplitOptions.RemoveEmptyEntries)];
+    }
 
     private static int ParseInt(string s) =>
         int.TryParse(s, out var v) ? v : 0;
