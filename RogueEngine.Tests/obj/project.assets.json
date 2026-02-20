@@ -5524,7 +5524,7 @@
     ]
   },
   "packageFolders": {
-    "/home/runner/.nuget/packages/": {}
+    "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages": {}
   },
   "project": {
     "version": "1.0.0",
@@ -5532,7 +5532,7 @@
       "projectUniqueName": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Tests/RogueEngine.Tests.csproj",
       "projectName": "RogueEngine.Tests",
       "projectPath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Tests/RogueEngine.Tests.csproj",
-      "packagesPath": "/home/runner/.nuget/packages/",
+      "packagesPath": "/home/runner/work/RogueEngine/.codeql-scratch/dbs/csharp/working/packages",
       "outputPath": "/home/runner/work/RogueEngine/RogueEngine/RogueEngine.Tests/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
@@ -5598,6 +5598,20 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
+        "downloadDependencies": [
+          {
+            "name": "Microsoft.AspNetCore.App.Ref",
+            "version": "[8.0.23, 8.0.23]"
+          },
+          {
+            "name": "Microsoft.NETCore.App.Ref",
+            "version": "[8.0.23, 8.0.23]"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App.Ref",
+            "version": "[8.0.23, 8.0.23]"
+          }
+        ],
         "frameworkReferences": {
           "Microsoft.NETCore.App": {
             "privateAssets": "all"

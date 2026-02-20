@@ -14,6 +14,24 @@ public enum ExportTarget
     Linux,
     /// <summary>Single-file HTML5 page playable in any modern browser.</summary>
     Html5,
+    /// <summary>
+    /// Standalone Node.js server script (<c>server.js</c>).
+    /// Requires Node.js ≥ 18 on the host machine; uses only built-in modules
+    /// (<c>net</c>, <c>fs</c>, <c>crypto</c>) – no <c>npm install</c> needed.
+    /// The server implements the same newline-delimited JSON wire protocol as
+    /// <see cref="Engine.NetworkSessionManager"/> so any RogueEngine client
+    /// can connect directly.
+    /// </summary>
+    NodeJsServer,
+    /// <summary>
+    /// Standalone Python 3 server script (<c>server.py</c>).
+    /// Requires Python ≥ 3.9 on the host machine; uses only the standard
+    /// library (<c>socket</c>, <c>threading</c>, <c>json</c>, <c>uuid</c>).
+    /// The server implements the same newline-delimited JSON wire protocol as
+    /// <see cref="Engine.NetworkSessionManager"/> so any RogueEngine client
+    /// can connect directly.
+    /// </summary>
+    PythonServer,
 }
 
 /// <summary>
@@ -43,6 +61,23 @@ public delegate void ExportProgressCallback(string message, int percent);
 ///       embeds a JavaScript ASCII runtime and the serialised game data.
 ///       No server is required – the file can be opened directly in a browser
 ///       or uploaded to any static-file host (itch.io, GitHub Pages, etc.).
+///     </description>
+///   </item>
+///   <item>
+///     <term>NodeJsServer</term>
+///     <description>
+///       Emits a single <c>server.js</c> file that runs a dedicated game
+///       server using Node.js built-in modules only (no npm dependencies).
+///       Implements the same newline-delimited JSON TCP wire protocol as
+///       <see cref="NetworkSessionManager"/>.
+///     </description>
+///   </item>
+///   <item>
+///     <term>PythonServer</term>
+///     <description>
+///       Emits a single <c>server.py</c> script that runs a dedicated game
+///       server using Python 3 standard-library modules only.
+///       Implements the same wire protocol for drop-in compatibility.
 ///     </description>
 ///   </item>
 /// </list>
@@ -95,9 +130,11 @@ public sealed class GameExporter
 
         return target switch
         {
-            ExportTarget.Windows => await ExportNativeAsync("win-x64", ".exe", projectJson, outputDirectory, cancellationToken),
-            ExportTarget.Linux   => await ExportNativeAsync("linux-x64", "", projectJson, outputDirectory, cancellationToken),
-            ExportTarget.Html5   => ExportHtml5(projectJson, outputDirectory),
+            ExportTarget.Windows     => await ExportNativeAsync("win-x64", ".exe", projectJson, outputDirectory, cancellationToken),
+            ExportTarget.Linux       => await ExportNativeAsync("linux-x64", "", projectJson, outputDirectory, cancellationToken),
+            ExportTarget.Html5       => ExportHtml5(projectJson, outputDirectory),
+            ExportTarget.NodeJsServer => ExportNodeJsServer(projectJson, outputDirectory),
+            ExportTarget.PythonServer => ExportPythonServer(projectJson, outputDirectory),
             _ => throw new ArgumentOutOfRangeException(nameof(target), target, null),
         };
     }
@@ -204,7 +241,388 @@ public sealed class GameExporter
         return outPath;
     }
 
-    // ── Source generation: Console Program.cs ─────────────────────────────────
+    // ── Node.js server export ──────────────────────────────────────────────────
+
+    private string ExportNodeJsServer(string projectJson, string outputDirectory)
+    {
+        Report("Generating Node.js server…", 20);
+        var script  = BuildNodeJsServerScript(projectJson);
+        var outPath = Path.Combine(outputDirectory, "server.js");
+        File.WriteAllText(outPath, script);
+        Report("Node.js server export complete.", 100);
+        return outPath;
+    }
+
+    private string BuildNodeJsServerScript(string projectJson)
+    {
+        var escapedJson = projectJson.Replace("`", "\\`").Replace("${", "\\${");
+        var name  = _project.Name.Replace("\"", "\\\"");
+        var port  = 7777; // default; game scripts can override at runtime
+
+        return $$"""
+            #!/usr/bin/env node
+            // ============================================================
+            // RogueEngine – Node.js Dedicated Server  (auto-generated)
+            // Game  : {{name}}
+            // Proto : newline-delimited JSON over TCP (same as NetworkSessionManager)
+            //
+            // Requirements : Node.js >= 18  (no npm install needed)
+            // Usage        : node server.js [port]
+            // ============================================================
+            'use strict';
+
+            const net    = require('net');
+            const crypto = require('crypto');
+
+            // ── Embedded project data ────────────────────────────────────
+            const PROJECT = JSON.parse(`{{escapedJson}}`);
+
+            // ── Configuration ────────────────────────────────────────────
+            const PORT       = parseInt(process.argv[2] ?? '{{port}}', 10);
+            const MAX_PLAYERS = 16;
+            const SESSION_NAME = PROJECT.name ?? '{{name}}';
+
+            // ── Server state ─────────────────────────────────────────────
+            /** @type {Map<string, {socket: net.Socket, name: string}>} */
+            const clients   = new Map();   // playerId -> {socket, name}
+            let   tickCount = 0;
+
+            // ── Wire helpers ─────────────────────────────────────────────
+            /**
+             * Send a NetworkMessage object to a single socket.
+             * @param {net.Socket} socket
+             * @param {object}     msg
+             */
+            function sendMsg(socket, msg) {
+              try { socket.write(JSON.stringify(msg) + '\n'); } catch (_) {}
+            }
+
+            /**
+             * Broadcast a message to all connected clients, with optional
+             * directed delivery when msg.targetPlayerId is set.
+             * @param {object}      msg
+             * @param {string|null} [excludeId]  player ID to skip (e.g. the sender)
+             */
+            function broadcast(msg, excludeId = null) {
+              if (msg.targetPlayerId) {
+                const target = clients.get(msg.targetPlayerId);
+                if (target) sendMsg(target.socket, msg);
+                return;
+              }
+              for (const [id, c] of clients) {
+                if (id !== excludeId) sendMsg(c.socket, msg);
+              }
+            }
+
+            // ── Message handler ──────────────────────────────────────────
+            /**
+             * Process one parsed message received from a client socket.
+             * @param {string}     senderId
+             * @param {object}     msg
+             * @param {net.Socket} socket
+             */
+            function handleMessage(senderId, msg, socket) {
+              msg.senderId = msg.senderId ?? senderId;
+
+              if (msg.messageType === 'join') {
+                const playerName = msg.payload ?? 'Player';
+                clients.set(senderId, { socket, name: playerName });
+                console.log(`[JOIN] ${playerName} (${senderId})`);
+                broadcast(msg);                          // announce to others
+                // Ack back to the joining client with current player list.
+                const names = [...clients.values()].map(c => c.name).join('\n');
+                sendMsg(socket, {
+                  id: crypto.randomUUID(), messageType: 'server-welcome',
+                  timestamp: new Date().toISOString(),
+                  senderId: null, payload: names,
+                });
+
+              } else if (msg.messageType === 'leave') {
+                const c = clients.get(senderId);
+                if (c) { console.log(`[LEAVE] ${c.name} (${senderId})`); }
+                clients.delete(senderId);
+                broadcast(msg);
+
+              } else {
+                // Relay / directed send – forward to target or broadcast.
+                broadcast(msg, senderId);
+              }
+            }
+
+            // ── Tick loop ────────────────────────────────────────────────
+            // Sends a heartbeat/tick message to all clients every 200 ms.
+            setInterval(() => {
+              tickCount++;
+              if (clients.size === 0) return;
+              broadcast({
+                id: crypto.randomUUID(),
+                messageType: 'server-tick',
+                timestamp: new Date().toISOString(),
+                senderId: null,
+                payload: String(tickCount),
+              });
+            }, 200);
+
+            // ── TCP server ───────────────────────────────────────────────
+            const server = net.createServer(socket => {
+              if (clients.size >= MAX_PLAYERS) {
+                socket.destroy();
+                return;
+              }
+
+              const playerId = crypto.randomUUID();
+              let   buffer   = '';
+
+              socket.setEncoding('utf8');
+
+              socket.on('data', chunk => {
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';            // keep incomplete line
+                for (const line of lines) {
+                  if (!line.trim()) continue;
+                  try {
+                    const msg = JSON.parse(line);
+                    handleMessage(playerId, msg, socket);
+                  } catch (_) {
+                    console.warn('[WARN] Malformed message from', playerId);
+                  }
+                }
+              });
+
+              socket.on('close', () => {
+                const c = clients.get(playerId);
+                if (c) {
+                  console.log(`[DC] ${c.name} (${playerId})`);
+                  clients.delete(playerId);
+                  broadcast({
+                    id: crypto.randomUUID(), messageType: 'player-left',
+                    timestamp: new Date().toISOString(),
+                    senderId: playerId, payload: c.name,
+                  });
+                }
+              });
+
+              socket.on('error', () => { /* handled by close */ });
+            });
+
+            server.listen(PORT, () => {
+              console.log(`[RogueEngine] "${SESSION_NAME}" server listening on :${PORT}`);
+              console.log(`Max players: ${MAX_PLAYERS}`);
+            });
+
+            process.on('SIGINT', () => {
+              console.log('\n[RogueEngine] Shutting down.');
+              server.close();
+              process.exit(0);
+            });
+            """;
+    }
+
+    // ── Python server export ───────────────────────────────────────────────────
+
+    private string ExportPythonServer(string projectJson, string outputDirectory)
+    {
+        Report("Generating Python server…", 20);
+        var script  = BuildPythonServerScript(projectJson);
+        var outPath = Path.Combine(outputDirectory, "server.py");
+        File.WriteAllText(outPath, script);
+        Report("Python server export complete.", 100);
+        return outPath;
+    }
+
+    private string BuildPythonServerScript(string projectJson)
+    {
+        // Escape the JSON for embedding inside a Python triple-single-quoted string.
+        var escapedJson = projectJson.Replace("\\", "\\\\").Replace("'", "\\'");
+        var name = _project.Name.Replace("'", "\\'");
+        var port = 7777;
+
+        return $$""""
+            #!/usr/bin/env python3
+            # ============================================================
+            # RogueEngine – Python Dedicated Server  (auto-generated)
+            # Game  : {{name}}
+            # Proto : newline-delimited JSON over TCP (same as NetworkSessionManager)
+            #
+            # Requirements : Python >= 3.9  (standard library only – no pip install)
+            # Usage        : python server.py [port]
+            # ============================================================
+            import json
+            import socket
+            import threading
+            import time
+            import uuid
+            import sys
+            from datetime import datetime, timezone
+
+            # ── Embedded project data ────────────────────────────────────
+            _PROJECT_JSON = '{{escapedJson}}'
+            PROJECT = json.loads(_PROJECT_JSON)
+
+            # ── Configuration ────────────────────────────────────────────
+            PORT        = int(sys.argv[1]) if len(sys.argv) > 1 else {{port}}
+            MAX_PLAYERS = 16
+            SESSION_NAME = PROJECT.get('name', '{{name}}')
+
+            # ── Server state ─────────────────────────────────────────────
+            # clients: dict[str, dict]  – playerId -> {conn, name}
+            clients: dict = {}
+            clients_lock = threading.Lock()
+            tick_count   = 0
+
+
+            def send_msg(conn: socket.socket, msg: dict) -> None:
+                '''Send a NetworkMessage dict as a newline-terminated JSON line.'''
+                try:
+                    data = json.dumps(msg, default=str) + '\n'
+                    conn.sendall(data.encode('utf-8'))
+                except OSError:
+                    pass
+
+
+            def broadcast(msg: dict, exclude_id: str | None = None) -> None:
+                '''
+                Broadcast msg to all clients.
+                If msg["targetPlayerId"] is set, deliver only to that client
+                (directed / server-to-client send).
+                '''
+                target_id = msg.get('targetPlayerId')
+                with clients_lock:
+                    snapshot = dict(clients)
+                if target_id:
+                    c = snapshot.get(target_id)
+                    if c:
+                        send_msg(c['conn'], msg)
+                    return
+                for pid, c in snapshot.items():
+                    if pid != exclude_id:
+                        send_msg(c['conn'], msg)
+
+
+            def _utcnow() -> str:
+                return datetime.now(timezone.utc).isoformat()
+
+
+            def handle_message(sender_id: str, msg: dict, conn: socket.socket) -> None:
+                '''Route one decoded message received from a client.'''
+                msg.setdefault('senderId', sender_id)
+                msg_type = msg.get('messageType', '')
+
+                if msg_type == 'join':
+                    player_name = msg.get('payload', 'Player')
+                    with clients_lock:
+                        clients[sender_id] = {'conn': conn, 'name': player_name}
+                    print(f'[JOIN] {player_name} ({sender_id})')
+                    broadcast(msg)
+                    with clients_lock:
+                        names = '\n'.join(c['name'] for c in clients.values())
+                    send_msg(conn, {
+                        'id': str(uuid.uuid4()),
+                        'messageType': 'server-welcome',
+                        'timestamp': _utcnow(),
+                        'senderId': None,
+                        'payload': names,
+                    })
+
+                elif msg_type == 'leave':
+                    with clients_lock:
+                        c = clients.pop(sender_id, None)
+                    if c:
+                        print(f'[LEAVE] {c["name"]} ({sender_id})')
+                    broadcast(msg)
+
+                else:
+                    broadcast(msg, exclude_id=sender_id)
+
+
+            def client_thread(conn: socket.socket, player_id: str) -> None:
+                '''Read newline-delimited JSON from a single client socket.'''
+                buf = b''
+                try:
+                    while True:
+                        chunk = conn.recv(4096)
+                        if not chunk:
+                            break
+                        buf += chunk
+                        while b'\n' in buf:
+                            line, buf = buf.split(b'\n', 1)
+                            line = line.strip()
+                            if not line:
+                                continue
+                            try:
+                                msg = json.loads(line.decode('utf-8'))
+                                handle_message(player_id, msg, conn)
+                            except json.JSONDecodeError:
+                                print(f'[WARN] Malformed message from {player_id}')
+                except OSError:
+                    pass
+                finally:
+                    conn.close()
+                    with clients_lock:
+                        c = clients.pop(player_id, None)
+                    if c:
+                        print(f'[DC] {c["name"]} ({player_id})')
+                        broadcast({
+                            'id': str(uuid.uuid4()),
+                            'messageType': 'player-left',
+                            'timestamp': _utcnow(),
+                            'senderId': player_id,
+                            'payload': c['name'],
+                        })
+
+
+            def tick_thread() -> None:
+                '''Send a heartbeat tick to all clients every 200 ms.'''
+                global tick_count
+                while True:
+                    time.sleep(0.2)
+                    tick_count += 1
+                    with clients_lock:
+                        has_clients = bool(clients)
+                    if not has_clients:
+                        continue
+                    broadcast({
+                        'id': str(uuid.uuid4()),
+                        'messageType': 'server-tick',
+                        'timestamp': _utcnow(),
+                        'senderId': None,
+                        'payload': str(tick_count),
+                    })
+
+
+            def main() -> None:
+                threading.Thread(target=tick_thread, daemon=True).start()
+
+                srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                srv.bind(('0.0.0.0', PORT))
+                srv.listen()
+                print(f'[RogueEngine] "{SESSION_NAME}" server listening on :{PORT}')
+                print(f'Max players: {MAX_PLAYERS}')
+
+                try:
+                    while True:
+                        conn, _ = srv.accept()
+                        with clients_lock:
+                            count = len(clients)
+                        if count >= MAX_PLAYERS:
+                            conn.close()
+                            continue
+                        pid = str(uuid.uuid4())
+                        threading.Thread(
+                            target=client_thread, args=(conn, pid), daemon=True
+                        ).start()
+                except KeyboardInterrupt:
+                    print('\n[RogueEngine] Shutting down.')
+                finally:
+                    srv.close()
+
+
+            if __name__ == '__main__':
+                main()
+            """";
+    }
 
     private static string BuildConsoleProgramSource(GameProject project) => $$"""
         // Auto-generated by RogueEngine – do not edit.

@@ -67,6 +67,13 @@ public sealed class NetworkSession
     /// <summary>Whether the local player is the session host.</summary>
     public bool IsHost => LocalPlayer?.IsHost ?? false;
 
+    /// <summary>
+    /// The role this participant plays in the client-server topology.
+    /// Defaults to <see cref="NetworkRole.Peer"/> for the traditional
+    /// host/client setup.
+    /// </summary>
+    public NetworkRole Role { get; set; } = NetworkRole.Peer;
+
     /// <summary>Number of players currently in the session.</summary>
     public int PlayerCount => Players.Count;
 

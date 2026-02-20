@@ -24,6 +24,13 @@ public sealed class NetworkMessage
     public DateTime Timestamp { get; init; } = DateTime.UtcNow;
 
     /// <summary>
+    /// When set, the message is directed to a single player rather than
+    /// broadcast to all.  The host/server routes the message only to the
+    /// client whose <see cref="NetworkPlayer.Id"/> matches this value.
+    /// </summary>
+    public Guid? TargetPlayerId { get; set; }
+
+    /// <summary>
     /// Arbitrary string payload.  Structured data should be JSON-encoded and
     /// stored here; simple values (chat text, key names) can be stored directly.
     /// </summary>

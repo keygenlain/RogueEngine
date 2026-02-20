@@ -1105,6 +1105,82 @@ public sealed class ScriptExecutor
                 break;
             }
 
+            // ── Client-Server Multiplayer ──────────────────────────────────────
+            case NodeType.HostServer:
+            {
+                var mgr    = Network ?? new NetworkSessionManager();
+                Network    = mgr;
+                var sName  = node.Properties.GetValueOrDefault("SessionName", "Dedicated Server");
+                var port   = int.TryParse(node.Properties.GetValueOrDefault("Port", "7777"), out var pv) ? pv : 7777;
+                var maxP   = int.TryParse(node.Properties.GetValueOrDefault("MaxPlayers", "16"), out var mpv) ? mpv : 16;
+                _ = mgr.HostAsServerAsync(sName, port, maxP);
+                SetPortValue(node, "Session", mgr.Session);
+                _log.Add($"[NET] Dedicated server '{sName}' on :{port}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.ConnectToServer:
+            {
+                var mgr   = Network ?? new NetworkSessionManager();
+                Network   = mgr;
+                var host  = node.Properties.GetValueOrDefault("Host", "127.0.0.1");
+                var pName = node.Properties.GetValueOrDefault("PlayerName", "Player");
+                var port  = int.TryParse(node.Properties.GetValueOrDefault("Port", "7777"), out var pv) ? pv : 7777;
+                _ = mgr.JoinAsync(host, pName, port, NetworkRole.AuthoritativeClient);
+                SetPortValue(node, "Session", mgr.Session);
+                _log.Add($"[NET] Connecting to server {host}:{port} as AuthoritativeClient");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SendToClient:
+            {
+                var payload      = ResolveString(node, "Payload");
+                var msgType      = node.Properties.GetValueOrDefault("MessageType", "server-direct");
+                var playerIdStr  = ResolveString(node, "PlayerId");
+                _log.Add($"[NET] → client {playerIdStr} [{msgType}]: {payload}");
+                if (Network is not null && Guid.TryParse(playerIdStr, out var pid))
+                    _ = Network.SendToClientAsync(pid, new NetworkMessage
+                        { MessageType = msgType, Payload = payload });
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.OnClientConnected:
+            case NodeType.OnClientDisconnected:
+                // Event nodes — wired up via NetworkSessionManager.PlayerJoined / PlayerLeft.
+                break;
+            case NodeType.GetNetworkRole:
+            {
+                var session = ResolveAny(node, "Session") as NetworkSession
+                    ?? Network?.Session;
+                SetPortValue(node, "Role",
+                    (session?.Role ?? NetworkRole.Peer).ToString());
+                break;
+            }
+
+            // ── Morgue File ────────────────────────────────────────────────────
+            case NodeType.GenerateMorgueFile:
+            {
+                var ent    = ResolveAny(node, "Entity") as Entity;
+                var cause  = node.Properties.GetValueOrDefault("Cause", "Unknown cause");
+                var dir    = node.Properties.GetValueOrDefault("Directory", "morgues");
+                var morgue = MorgueFileWriter.BuildFromRunState(
+                    player: ent,
+                    cause: cause,
+                    turnsPlayed: _tickCount,
+                    visitedLocations: Overworld.ActiveOverworld?.Locations
+                        .Where(l => l.HasBeenVisited).Select(l => l.Name),
+                    notes: _log);
+                var writer = new MorgueFileWriter();
+                var path   = writer.WriteToFile(morgue, dir) ?? "(write failed)";
+                SetPortValue(node, "FilePath", path);
+                _log.Add($"[MORGUE] Written: {path}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.OnPlayerDeath:
+                // Event node — fired externally when player HP drops to 0.
+                break;
+
             default:
                 _log.Add($"[WARN] Unhandled node type: {node.Type}");
                 break;

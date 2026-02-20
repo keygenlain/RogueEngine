@@ -148,6 +148,29 @@ public enum NodeType
     /// <summary>Fires when a remote entity position update is received.</summary>
     OnEntityStateReceived,
 
+    // ── Multiplayer: Client-Server ────────────────────────────────────────────
+    /// <summary>
+    /// Starts a dedicated authoritative server with no local player.
+    /// Clients send input; the server sends state updates.
+    /// </summary>
+    HostServer,
+    /// <summary>
+    /// Connects to a dedicated authoritative server as a
+    /// <see cref="NetworkRole.AuthoritativeClient"/>.
+    /// </summary>
+    ConnectToServer,
+    /// <summary>
+    /// Sends a directed message from the server to a single connected client.
+    /// Only available when running as a dedicated server or host.
+    /// </summary>
+    SendToClient,
+    /// <summary>Fires on the server when a new client connects.</summary>
+    OnClientConnected,
+    /// <summary>Fires on the server when a client disconnects.</summary>
+    OnClientDisconnected,
+    /// <summary>Outputs the current <see cref="NetworkRole"/> of the session.</summary>
+    GetNetworkRole,
+
     // ── Persistence / Save-Load ───────────────────────────────────────────────
     /// <summary>Saves the full game state to a named save slot.</summary>
     SaveGame,
@@ -247,4 +270,16 @@ public enum NodeType
     // ── Custom / Extension ────────────────────────────────────────────────────
     /// <summary>Executes an inline C# expression string (advanced users).</summary>
     InlineExpression,
+
+    // ── Morgue File ───────────────────────────────────────────────────────────
+    /// <summary>
+    /// Generates a post-mortem morgue file recording the character's run.
+    /// Called when the player dies or the run ends.
+    /// </summary>
+    GenerateMorgueFile,
+    /// <summary>
+    /// Event node that fires when the player entity is marked dead
+    /// (HP ≤ 0 or explicitly triggered by script logic).
+    /// </summary>
+    OnPlayerDeath,
 }

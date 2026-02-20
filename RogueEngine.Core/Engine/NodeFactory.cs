@@ -656,6 +656,63 @@ public static class NodeFactory
             OutputPorts = [("Exec", PortDataType.Exec), ("EntityId", PortDataType.String), ("X", PortDataType.Int), ("Y", PortDataType.Int), ("Glyph", PortDataType.String)],
         };
 
+        // ── Multiplayer: Client-Server ─────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.HostServer,
+            Title = "Host Server",
+            Description = "Starts a dedicated authoritative server without a local player. Clients connect using Connect To Server.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session)],
+            DefaultProperties = { ["SessionName"] = "Dedicated Server", ["Port"] = "7777", ["MaxPlayers"] = "16" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.ConnectToServer,
+            Title = "Connect To Server",
+            Description = "Connects to a dedicated authoritative server as an AuthoritativeClient. Use instead of Join Session when targeting a HostServer.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session)],
+            DefaultProperties = { ["Host"] = "127.0.0.1", ["Port"] = "7777", ["PlayerName"] = "Player" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SendToClient,
+            Title = "Send To Client",
+            Description = "Sends a directed message from the server to a single client identified by player ID. Only valid on the host/server.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session), ("Payload", PortDataType.String), ("PlayerId", PortDataType.String)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["MessageType"] = "server-direct" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnClientConnected,
+            Title = "On Client Connected",
+            Description = "Fires on the server when a new client establishes a connection.",
+            Category = "Multiplayer",
+            OutputPorts = [("Exec", PortDataType.Exec), ("PlayerName", PortDataType.String), ("PlayerId", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnClientDisconnected,
+            Title = "On Client Disconnected",
+            Description = "Fires on the server when a connected client drops or explicitly leaves.",
+            Category = "Multiplayer",
+            OutputPorts = [("Exec", PortDataType.Exec), ("PlayerName", PortDataType.String), ("PlayerId", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetNetworkRole,
+            Title = "Get Network Role",
+            Description = "Outputs the current network role of this session: Peer, DedicatedServer, or AuthoritativeClient.",
+            Category = "Multiplayer",
+            InputPorts = [("Session", PortDataType.Session)],
+            OutputPorts = [("Role", PortDataType.String)],
+        };
+
         // ── Persistence / Save-Load ────────────────────────────────────────────
         yield return new NodeDefinition
         {
@@ -1073,6 +1130,26 @@ public static class NodeFactory
             Category = "Sprites",
             InputPorts = [("Exec", PortDataType.Exec), ("Node", PortDataType.SceneNode), ("Playing", PortDataType.Bool)],
             OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+
+        // ── Morgue File ────────────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GenerateMorgueFile,
+            Title = "Generate Morgue File",
+            Description = "Generates a post-mortem morgue file for a character when they die. Writes a timestamped .txt record of the run.",
+            Category = "Morgue",
+            InputPorts = [("Exec", PortDataType.Exec), ("Entity", PortDataType.Entity)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("FilePath", PortDataType.String)],
+            DefaultProperties = { ["Cause"] = "Unknown cause", ["Directory"] = "morgues" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnPlayerDeath,
+            Title = "On Player Death",
+            Description = "Event node that fires when the player entity is marked as dead (HP ≤ 0 or triggered by script). Wire to Generate Morgue File.",
+            Category = "Morgue",
+            OutputPorts = [("Exec", PortDataType.Exec), ("Entity", PortDataType.Entity), ("Cause", PortDataType.String)],
         };
     }
 }
