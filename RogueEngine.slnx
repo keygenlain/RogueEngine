@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="RogueEngine.Core/RogueEngine.Core.csproj" />
+  <Project Path="RogueEngine.Tests/RogueEngine.Tests.csproj" />
+  <Project Path="RogueEngine/RogueEngine.csproj" />
+</Solution>
