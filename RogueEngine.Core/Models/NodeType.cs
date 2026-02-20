@@ -282,4 +282,27 @@ public enum NodeType
     /// (HP ≤ 0 or explicitly triggered by script logic).
     /// </summary>
     OnPlayerDeath,
+
+    // ── Roguelike Core ────────────────────────────────────────────────────────
+    /// <summary>
+    /// Computes a field-of-view set on a Map from an Origin tile using
+    /// recursive shadowcasting out to the given Radius.
+    /// Outputs a list of visible tile positions as "x,y" strings.
+    /// </summary>
+    ComputeFOV,
+    /// <summary>
+    /// Finds the shortest path on a Map from Start to End using A*, treating
+    /// '#' tiles as walls.  Outputs the NextStep location and a Success flag.
+    /// </summary>
+    FindPathAStar,
+    /// <summary>
+    /// Reads a named stat from an entity's Properties dictionary and outputs
+    /// it as an Any value.
+    /// </summary>
+    GetEntityStat,
+    /// <summary>
+    /// Control-flow node that pauses the Exec chain until a key is pressed,
+    /// then resumes execution and outputs the pressed Key as a String.
+    /// </summary>
+    WaitForInput,
 }

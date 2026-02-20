@@ -320,4 +320,164 @@ public sealed class ScriptExecutorTests
             Assert.Equal(def.Type, node.Type);
         }
     }
+
+    // ── Roguelike Core ────────────────────────────────────────────────────────
+
+    [Fact]
+    public void ComputeFOV_ReturnsOriginInVisibleTiles()
+    {
+        var (graph, start, fov) = BuildExecChain(NodeType.ComputeFOV);
+        fov.Properties["Radius"] = "3";
+
+        // Route start → createMap → fov so _activeMap is populated
+        var createMap = NodeFactory.Create(NodeType.CreateMap);
+        createMap.Properties["Width"] = "10";
+        createMap.Properties["Height"] = "10";
+        graph.AddNode(createMap);
+
+        var startExec = start.Outputs.First(p => p.Name == "Exec");
+        var createExec = createMap.Inputs.First(p => p.Name == "Exec");
+        var createOut  = createMap.Outputs.First(p => p.Name == "Exec");
+        var fovExec    = fov.Inputs.First(p => p.Name == "Exec");
+        graph.Connect(start.Id, startExec.Id, createMap.Id, createExec.Id);
+        graph.Connect(createMap.Id, createOut.Id, fov.Id, fovExec.Id);
+
+        // Wire OriginX=5, OriginY=5
+        var varX = NodeFactory.Create(NodeType.VariableInt);
+        varX.Properties["Value"] = "5";
+        var varY = NodeFactory.Create(NodeType.VariableInt);
+        varY.Properties["Value"] = "5";
+        graph.AddNode(varX);
+        graph.AddNode(varY);
+        graph.Connect(varX.Id, varX.Outputs.First(p => p.Name == "Value").Id,
+                      fov.Id,  fov.Inputs.First(p => p.Name == "OriginX").Id);
+        graph.Connect(varY.Id, varY.Outputs.First(p => p.Name == "Value").Id,
+                      fov.Id,  fov.Inputs.First(p => p.Name == "OriginY").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("Unhandled node type: ComputeFOV"));
+    }
+
+    [Fact]
+    public void ComputeFOV_NullMap_ReturnsOnlyOrigin()
+    {
+        var (graph, start, fov) = BuildExecChain(NodeType.ComputeFOV);
+        fov.Properties["Radius"] = "5";
+
+        var varX = NodeFactory.Create(NodeType.VariableInt);
+        varX.Properties["Value"] = "3";
+        var varY = NodeFactory.Create(NodeType.VariableInt);
+        varY.Properties["Value"] = "3";
+        graph.AddNode(varX);
+        graph.AddNode(varY);
+        graph.Connect(varX.Id, varX.Outputs.First(p => p.Name == "Value").Id,
+                      fov.Id, fov.Inputs.First(p => p.Name == "OriginX").Id);
+        graph.Connect(varY.Id, varY.Outputs.First(p => p.Name == "Value").Id,
+                      fov.Id, fov.Inputs.First(p => p.Name == "OriginY").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("Unhandled node type: ComputeFOV"));
+    }
+
+    [Fact]
+    public void FindPathAStar_OpenMap_FindsPath()
+    {
+        // 5×5 open map, path from (0,0) to (4,4) should succeed
+        var (graph, start, pathNode) = BuildExecChain(NodeType.FindPathAStar);
+
+        var createMap = NodeFactory.Create(NodeType.CreateMap);
+        createMap.Properties["Width"] = "5";
+        createMap.Properties["Height"] = "5";
+        graph.AddNode(createMap);
+
+        var startExec = start.Outputs.First(p => p.Name == "Exec");
+        var createExec = createMap.Inputs.First(p => p.Name == "Exec");
+        var createOut = createMap.Outputs.First(p => p.Name == "Exec");
+        var pathExec = pathNode.Inputs.First(p => p.Name == "Exec");
+        graph.Connect(start.Id, startExec.Id, createMap.Id, createExec.Id);
+        graph.Connect(createMap.Id, createOut.Id, pathNode.Id, pathExec.Id);
+
+        // EndX=4, EndY=4
+        var varEx = NodeFactory.Create(NodeType.VariableInt);
+        varEx.Properties["Value"] = "4";
+        var varEy = NodeFactory.Create(NodeType.VariableInt);
+        varEy.Properties["Value"] = "4";
+        graph.AddNode(varEx);
+        graph.AddNode(varEy);
+        graph.Connect(varEx.Id, varEx.Outputs.First(p => p.Name == "Value").Id,
+                      pathNode.Id, pathNode.Inputs.First(p => p.Name == "EndX").Id);
+        graph.Connect(varEy.Id, varEy.Outputs.First(p => p.Name == "Value").Id,
+                      pathNode.Id, pathNode.Inputs.First(p => p.Name == "EndY").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("Unhandled node type: FindPathAStar"));
+    }
+
+    [Fact]
+    public void FindPathAStar_NullMap_ReturnsFalse()
+    {
+        // Without a map the node should set Success=false and not crash
+        var (graph, start, pathNode) = BuildExecChain(NodeType.FindPathAStar);
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("Unhandled node type: FindPathAStar"));
+    }
+
+    [Fact]
+    public void GetEntityStat_KnownStat_ReturnsValue()
+    {
+        var spawnNode = NodeFactory.Create(NodeType.SpawnEntity);
+        spawnNode.Properties["Name"] = "Hero";
+        var statNode = NodeFactory.Create(NodeType.GetEntityStat);
+        var start = NodeFactory.Create(NodeType.Start);
+        var graph = BuildGraphWith(start, spawnNode, statNode);
+
+        // Wire: start → spawnNode (exec)
+        graph.Connect(start.Id, start.Outputs.First(p => p.Name == "Exec").Id,
+                      spawnNode.Id, spawnNode.Inputs.First(p => p.Name == "Exec").Id);
+        // Wire entity output → GetEntityStat entity input
+        graph.Connect(spawnNode.Id, spawnNode.Outputs.First(p => p.Name == "Entity").Id,
+                      statNode.Id, statNode.Inputs.First(p => p.Name == "Entity").Id);
+
+        var result = new ScriptExecutor(graph).Run();
+        Assert.DoesNotContain(result.Log, l => l.Contains("Unhandled node type: GetEntityStat"));
+    }
+
+    [Fact]
+    public void WaitForInput_WithInjectedKey_OutputsKey()
+    {
+        var (graph, start, waitNode) = BuildExecChain(NodeType.WaitForInput);
+        var executor = new ScriptExecutor(graph);
+        executor.InjectKeyPress("ArrowUp");
+        var result = executor.Run();
+
+        Assert.Contains(result.Log, l => l.Contains("[WAIT_FOR_INPUT] Key: ArrowUp"));
+    }
+
+    [Fact]
+    public void WaitForInput_NoInjectedKey_LogsNone()
+    {
+        var (graph, start, waitNode) = BuildExecChain(NodeType.WaitForInput);
+        var result = new ScriptExecutor(graph).Run();
+
+        Assert.Contains(result.Log, l => l.Contains("[WAIT_FOR_INPUT] Key: (none)"));
+    }
+
+    [Fact]
+    public void NodeFactory_RoguelikeCoreNodes_HaveCorrectCategory()
+    {
+        var roguelikeCoreTypes = new[]
+        {
+            NodeType.ComputeFOV,
+            NodeType.FindPathAStar,
+            NodeType.GetEntityStat,
+            NodeType.WaitForInput,
+        };
+
+        foreach (var type in roguelikeCoreTypes)
+        {
+            var def = NodeFactory.AllDefinitions.FirstOrDefault(d => d.Type == type);
+            Assert.NotNull(def);
+            Assert.Equal("Roguelike Core", def.Category);
+        }
+    }
 }

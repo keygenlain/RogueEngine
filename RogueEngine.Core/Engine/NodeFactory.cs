@@ -1151,5 +1151,83 @@ public static class NodeFactory
             Category = "Morgue",
             OutputPorts = [("Exec", PortDataType.Exec), ("Entity", PortDataType.Entity), ("Cause", PortDataType.String)],
         };
+
+        // ── Roguelike Core ─────────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.ComputeFOV,
+            Title = "Compute FOV",
+            Description = "Uses recursive shadowcasting to calculate the set of visible tiles on a Map from an Origin out to the given Radius. Outputs a list of visible tile positions as \"x,y\" strings.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("Map", PortDataType.Map),
+                ("OriginX", PortDataType.Int),
+                ("OriginY", PortDataType.Int),
+                ("Radius", PortDataType.Int),
+            ],
+            OutputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("VisibleTiles", PortDataType.Any),
+            ],
+            DefaultProperties = { ["Radius"] = "8" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.FindPathAStar,
+            Title = "Find Path A*",
+            Description = "Finds the shortest walkable path on a Map from Start to End using A*, treating '#' tiles as walls. Outputs the NextStep location coordinates and a Success flag.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("Map", PortDataType.Map),
+                ("StartX", PortDataType.Int),
+                ("StartY", PortDataType.Int),
+                ("EndX", PortDataType.Int),
+                ("EndY", PortDataType.Int),
+            ],
+            OutputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("NextStepX", PortDataType.Int),
+                ("NextStepY", PortDataType.Int),
+                ("Success", PortDataType.Bool),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetEntityStat,
+            Title = "Get Entity Stat",
+            Description = "Looks up a named stat in an entity's Properties dictionary and outputs its value as Any.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Entity", PortDataType.Entity),
+                ("StatName", PortDataType.String),
+            ],
+            OutputPorts =
+            [
+                ("Value", PortDataType.Any),
+            ],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.WaitForInput,
+            Title = "Wait For Input",
+            Description = "Pauses the Exec chain until a key is pressed, then resumes execution and outputs the pressed Key as a String.",
+            Category = "Roguelike Core",
+            InputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+            ],
+            OutputPorts =
+            [
+                ("Exec", PortDataType.Exec),
+                ("Key", PortDataType.String),
+            ],
+        };
     }
 }
