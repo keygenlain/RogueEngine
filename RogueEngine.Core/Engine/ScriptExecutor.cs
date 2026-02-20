@@ -33,10 +33,6 @@ public sealed class ScriptExecutor
     private int _tickCount;
     private int _lastMenuSelection = 0;
 
-    // Tracks which nodes have already been executed in the current exec-chain pass
-    // to prevent infinite recursion when data connections loop back through exec nodes.
-    private readonly HashSet<Guid> _executedInChain = [];
-
     // Tracks nodes currently in the execution call stack to detect recursion.
     private readonly HashSet<Guid> _inProgress = [];
 
@@ -67,7 +63,7 @@ public sealed class ScriptExecutor
         _log.Clear();
         _entities.Clear();
         _activeMap = null;
-        _executedInChain.Clear();
+        _inProgress.Clear();
 
         var start = _graph.FindStartNode();
         if (start is null)
@@ -81,6 +77,21 @@ public sealed class ScriptExecutor
     }
 
     /// <summary>
+    /// Evaluates a single node and all its transitive data-input dependencies,
+    /// without requiring a Start node or exec chain.
+    /// Useful for evaluating pure data nodes (variables, math) in isolation.
+    /// </summary>
+    /// <param name="node">The node to evaluate.</param>
+    public void EvaluateNode(ScriptNode node)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        _inProgress.Clear();
+        _inProgress.Add(node.Id);
+        try { ExecuteNode(node); }
+        finally { _inProgress.Remove(node.Id); }
+    }
+
+    /// <summary>
     /// Simulates a single game tick.
     /// Finds all <see cref="NodeType.OnTick"/> event nodes and fires their chains.
     /// </summary>
@@ -88,7 +99,7 @@ public sealed class ScriptExecutor
     {
         _portValues.Clear();
         _log.Clear();
-        _executedInChain.Clear();
+        _inProgress.Clear();
         _tickCount++;
 
         foreach (var node in _graph.Nodes.Where(n => n.Type == NodeType.OnTick))
@@ -118,9 +129,6 @@ public sealed class ScriptExecutor
 
         var nextNode = _graph.FindNode(execConn.TargetNodeId);
         if (nextNode is null) return;
-
-        // Guard against infinite loops caused by exec-chain cycles.
-        if (!_executedInChain.Add(nextNode.Id)) return;
 
         ExecuteNode(nextNode);
     }
@@ -479,8 +487,9 @@ public sealed class ScriptExecutor
 
     /// <summary>
     /// Resolves the current value of an input port.
-    /// If the port is connected, the source node is evaluated first.
-    /// Otherwise the port's <see cref="NodePort.DefaultValue"/> is used.
+    /// If the port is connected, the cached output value is used when available;
+    /// otherwise the source node is evaluated on-demand.
+    /// Falls back to the port's <see cref="NodePort.DefaultValue"/> when unconnected.
     /// </summary>
     private object? ResolveAny(ScriptNode node, string portName)
     {
@@ -492,14 +501,26 @@ public sealed class ScriptExecutor
 
         if (conn is not null)
         {
+            // Use cached value if the source port has already produced a result.
+            if (_portValues.TryGetValue(conn.SourcePortId, out var cached))
+                return cached;
+
             var srcNode = _graph.FindNode(conn.SourceNodeId);
-            if (srcNode is not null)
+            if (srcNode is not null && !_inProgress.Contains(srcNode.Id))
             {
-                ExecuteNode(srcNode);
-                if (_portValues.TryGetValue(conn.SourcePortId, out var cached))
-                    return cached;
+                _inProgress.Add(srcNode.Id);
+                try { ExecuteNode(srcNode); }
+                finally { _inProgress.Remove(srcNode.Id); }
+
+                if (_portValues.TryGetValue(conn.SourcePortId, out var computed))
+                    return computed;
             }
         }
+
+        // No connection: fall back to node Properties dict first, then port DefaultValue.
+        if (node.Properties.TryGetValue(portName, out var propVal) &&
+            !string.IsNullOrEmpty(propVal))
+            return propVal;
 
         return port.DefaultValue;
     }

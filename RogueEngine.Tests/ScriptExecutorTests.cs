@@ -102,7 +102,7 @@ public sealed class ScriptExecutorTests
         varNode.Properties["Value"] = "42";
         var graph = BuildGraphWith(varNode);
 
-        new ScriptExecutor(graph).Run();
+        new ScriptExecutor(graph).EvaluateNode(varNode);
         Assert.Equal(42, varNode.Outputs.First().RuntimeValue);
     }
 
@@ -112,7 +112,7 @@ public sealed class ScriptExecutorTests
         var varNode = NodeFactory.Create(NodeType.VariableFloat);
         varNode.Properties["Value"] = "3.14";
         var graph = BuildGraphWith(varNode);
-        new ScriptExecutor(graph).Run();
+        new ScriptExecutor(graph).EvaluateNode(varNode);
         Assert.Equal(3.14f, (float)(varNode.Outputs.First().RuntimeValue ?? 0f), 2);
     }
 
@@ -122,7 +122,7 @@ public sealed class ScriptExecutorTests
         var varNode = NodeFactory.Create(NodeType.VariableBool);
         varNode.Properties["Value"] = "true";
         var graph = BuildGraphWith(varNode);
-        new ScriptExecutor(graph).Run();
+        new ScriptExecutor(graph).EvaluateNode(varNode);
         Assert.Equal(true, varNode.Outputs.First().RuntimeValue);
     }
 
@@ -136,15 +136,14 @@ public sealed class ScriptExecutorTests
         var b = NodeFactory.Create(NodeType.VariableFloat);
         b.Properties["Value"] = "5";
         var add = NodeFactory.Create(NodeType.MathAdd);
-        var start = NodeFactory.Create(NodeType.Start);
 
-        var graph = BuildGraphWith(start, a, b, add);
+        var graph = BuildGraphWith(a, b, add);
 
         // Connect a→A, b→B
         graph.Connect(a.Id, a.Outputs.First().Id, add.Id, add.Inputs.First(p => p.Name == "A").Id);
         graph.Connect(b.Id, b.Outputs.First().Id, add.Id, add.Inputs.First(p => p.Name == "B").Id);
 
-        new ScriptExecutor(graph).Run();
+        new ScriptExecutor(graph).EvaluateNode(add);
         Assert.Equal(15f, add.Outputs.First(p => p.Name == "Result").RuntimeValue);
     }
 
@@ -159,7 +158,7 @@ public sealed class ScriptExecutorTests
         var graph = BuildGraphWith(a, b, div);
         graph.Connect(a.Id, a.Outputs.First().Id, div.Id, div.Inputs.First(p => p.Name == "A").Id);
         graph.Connect(b.Id, b.Outputs.First().Id, div.Id, div.Inputs.First(p => p.Name == "B").Id);
-        new ScriptExecutor(graph).Run();
+        new ScriptExecutor(graph).EvaluateNode(div);
         Assert.Equal(0f, div.Outputs.First(p => p.Name == "Result").RuntimeValue);
     }
 
@@ -173,13 +172,15 @@ public sealed class ScriptExecutorTests
         rndNode.Properties["Max"] = "100";
         var graph = BuildGraphWith(rndNode);
 
-        new ScriptExecutor(graph, seed: 123).Run();
-        var v1 = (int?)rndNode.Outputs.First(p => p.Name == "Value").RuntimeValue ?? -1;
+        var exec1 = new ScriptExecutor(graph, seed: 123);
+        exec1.EvaluateNode(rndNode);
+        var v1 = (int)(rndNode.Outputs.First(p => p.Name == "Value").RuntimeValue ?? -1);
 
         // Re-run with same seed
         rndNode.Outputs.First().RuntimeValue = null;
-        new ScriptExecutor(graph, seed: 123).Run();
-        var v2 = (int?)rndNode.Outputs.First(p => p.Name == "Value").RuntimeValue ?? -2;
+        var exec2 = new ScriptExecutor(graph, seed: 123);
+        exec2.EvaluateNode(rndNode);
+        var v2 = (int)(rndNode.Outputs.First(p => p.Name == "Value").RuntimeValue ?? -2);
 
         Assert.Equal(v1, v2);
     }
