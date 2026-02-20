@@ -95,6 +95,111 @@ public enum NodeType
     /// <summary>Fires when an entity enters a given tile.</summary>
     OnEntityEnterTile,
 
+    // ── Overworld &amp; Persistent Locations ─────────────────────────────────────
+    /// <summary>Creates a new overworld that holds a collection of locations.</summary>
+    CreateOverworld,
+    /// <summary>Adds a named location to an existing overworld.</summary>
+    AddLocation,
+    /// <summary>Connects two locations via a named exit (e.g. "North").</summary>
+    ConnectLocations,
+    /// <summary>Moves the player to a named location in the overworld.</summary>
+    TravelToLocation,
+    /// <summary>Travels via a named exit from the current location.</summary>
+    TravelViaExit,
+    /// <summary>Outputs the name of the current overworld location.</summary>
+    GetCurrentLocation,
+    /// <summary>Fires when the player arrives at a new location.</summary>
+    OnEnterLocation,
+    /// <summary>Fires when the player leaves a location.</summary>
+    OnLeaveLocation,
+    /// <summary>Reads a persistent key-value property from the current location.</summary>
+    GetLocationData,
+    /// <summary>Writes a persistent key-value property on the current location.</summary>
+    SetLocationData,
+    /// <summary>
+    /// Generates or re-generates the map for a location using the specified
+    /// procgen algorithm and assigns it to the location's Map slot.
+    /// </summary>
+    GenerateLocation,
+    /// <summary>Renders the overworld as a dot-map on the ASCII display.</summary>
+    RenderOverworld,
+
+    // ── Multiplayer ───────────────────────────────────────────────────────────
+    /// <summary>Starts hosting a multiplayer session on the given port.</summary>
+    HostSession,
+    /// <summary>Joins an existing multiplayer session by host:port.</summary>
+    JoinSession,
+    /// <summary>Disconnects from or shuts down the current session.</summary>
+    LeaveSession,
+    /// <summary>Broadcasts a typed message to all players in the session.</summary>
+    BroadcastMessage,
+    /// <summary>Sends a message to a specific player by player ID.</summary>
+    SendMessageToPlayer,
+    /// <summary>Fires when a network message of a given type is received.</summary>
+    OnMessageReceived,
+    /// <summary>Outputs the list of connected player names as a newline string.</summary>
+    GetConnectedPlayers,
+    /// <summary>Outputs the local player's name.</summary>
+    GetLocalPlayerName,
+    /// <summary>Outputs <see langword="true"/> when the local client is the host.</summary>
+    IsHost,
+    /// <summary>Synchronises an entity's position to all remote clients.</summary>
+    SyncEntityState,
+    /// <summary>Fires when a remote entity position update is received.</summary>
+    OnEntityStateReceived,
+
+    // ── Persistence / Save-Load ───────────────────────────────────────────────
+    /// <summary>Saves the full game state to a named save slot.</summary>
+    SaveGame,
+    /// <summary>Loads game state from a named save slot.</summary>
+    LoadGame,
+    /// <summary>Deletes a save slot.</summary>
+    DeleteSave,
+    /// <summary>Outputs <see langword="true"/> if a save slot exists.</summary>
+    SaveSlotExists,
+    /// <summary>Writes a typed value to the global persistent store.</summary>
+    SetPersistentValue,
+    /// <summary>Reads a typed value from the global persistent store.</summary>
+    GetPersistentValue,
+
+    // ── Dialogue &amp; Cutscenes ─────────────────────────────────────────────────
+    /// <summary>Displays a speaker-attributed line of dialogue.</summary>
+    ShowDialogueLine,
+    /// <summary>Presents a choice list and fires on the chosen index.</summary>
+    ShowDialogueChoice,
+    /// <summary>Fires when dialogue choice index N is selected.</summary>
+    OnDialogueChoice,
+    /// <summary>Starts a cutscene sequence; pauses normal input.</summary>
+    StartCutscene,
+    /// <summary>Ends the active cutscene and restores input.</summary>
+    EndCutscene,
+    /// <summary>Pauses script execution for a given number of ticks.</summary>
+    Wait,
+
+    // ── Factions &amp; Relationships ────────────────────────────────────────────
+    /// <summary>Creates a named faction.</summary>
+    CreateFaction,
+    /// <summary>Assigns an entity to a faction.</summary>
+    AssignEntityFaction,
+    /// <summary>Sets the relationship value between two factions (-100 to 100).</summary>
+    SetFactionRelation,
+    /// <summary>Outputs the current relationship value between two factions.</summary>
+    GetFactionRelation,
+    /// <summary>Outputs the faction name of an entity.</summary>
+    GetEntityFaction,
+    /// <summary>Fires when a faction's relationship crosses a threshold.</summary>
+    OnRelationChanged,
+
+    // ── Day / Night &amp; Time ──────────────────────────────────────────────────
+    /// <summary>Advances the in-game clock by a given number of time units.</summary>
+    AdvanceTime,
+    /// <summary>Outputs the current in-game hour (0–23).</summary>
+    GetTimeOfDay,
+    /// <summary>Outputs true during the configured night hours.</summary>
+    IsNight,
+    /// <summary>Fires at a specific in-game hour.</summary>
+    OnTimeOfDay,
+
     // ── Custom / Extension ────────────────────────────────────────────────────
     /// <summary>Executes an inline C# expression string (advanced users).</summary>
     InlineExpression,

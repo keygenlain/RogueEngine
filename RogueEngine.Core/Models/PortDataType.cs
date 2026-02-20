@@ -21,6 +21,12 @@ public enum PortDataType
     Entity,
     /// <summary>A single <see cref="AsciiCell"/>.</summary>
     Cell,
+    /// <summary>Reference to an <see cref="Overworld"/>.</summary>
+    Overworld,
+    /// <summary>Reference to an <see cref="OverworldLocation"/>.</summary>
+    Location,
+    /// <summary>Reference to a <see cref="NetworkSession"/>.</summary>
+    Session,
     /// <summary>Any type (for polymorphic ports).</summary>
     Any,
 }

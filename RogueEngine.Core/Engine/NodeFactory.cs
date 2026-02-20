@@ -432,5 +432,446 @@ public static class NodeFactory
             OutputPorts = [("Exec", PortDataType.Exec), ("Result", PortDataType.Any)],
             DefaultProperties = { ["Expression"] = "1 + 1" },
         };
+
+        // ── Overworld & Persistent Locations ───────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.CreateOverworld,
+            Title = "Create Overworld",
+            Description = "Creates a new overworld to hold a collection of locations.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Overworld", PortDataType.Overworld)],
+            DefaultProperties = { ["Name"] = "World" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.AddLocation,
+            Title = "Add Location",
+            Description = "Creates a named location and adds it to the overworld.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec), ("Overworld", PortDataType.Overworld)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Location", PortDataType.Location)],
+            DefaultProperties = { ["Name"] = "New Location", ["WorldX"] = "0", ["WorldY"] = "0", ["Description"] = "" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.ConnectLocations,
+            Title = "Connect Locations",
+            Description = "Adds a named exit between two locations.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec), ("From", PortDataType.Location), ("To", PortDataType.Location)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["ExitName"] = "North", ["ReverseExitName"] = "South" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.TravelToLocation,
+            Title = "Travel To Location",
+            Description = "Moves the player to the given location.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec), ("Overworld", PortDataType.Overworld), ("Location", PortDataType.Location)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.TravelViaExit,
+            Title = "Travel Via Exit",
+            Description = "Travels through a named exit from the current location.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec), ("Overworld", PortDataType.Overworld)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Arrived", PortDataType.Location)],
+            DefaultProperties = { ["ExitName"] = "North" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetCurrentLocation,
+            Title = "Get Current Location",
+            Description = "Outputs the name and reference of the current overworld location.",
+            Category = "Overworld",
+            InputPorts = [("Overworld", PortDataType.Overworld)],
+            OutputPorts = [("Location", PortDataType.Location), ("Name", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnEnterLocation,
+            Title = "On Enter Location",
+            Description = "Fires when the player arrives at a new location.",
+            Category = "Overworld",
+            OutputPorts = [("Exec", PortDataType.Exec), ("Location", PortDataType.Location), ("Name", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnLeaveLocation,
+            Title = "On Leave Location",
+            Description = "Fires when the player leaves a location.",
+            Category = "Overworld",
+            OutputPorts = [("Exec", PortDataType.Exec), ("Location", PortDataType.Location), ("ExitUsed", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetLocationData,
+            Title = "Get Location Data",
+            Description = "Reads a persistent key-value property from the current location.",
+            Category = "Overworld",
+            InputPorts = [("Location", PortDataType.Location)],
+            OutputPorts = [("Value", PortDataType.String)],
+            DefaultProperties = { ["Key"] = "key" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SetLocationData,
+            Title = "Set Location Data",
+            Description = "Writes a persistent key-value property on a location.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec), ("Location", PortDataType.Location), ("Value", PortDataType.String)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Key"] = "key" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GenerateLocation,
+            Title = "Generate Location Map",
+            Description = "Procedurally generates the map for a location.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec), ("Location", PortDataType.Location)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Map", PortDataType.Map)],
+            DefaultProperties = {
+                ["Algorithm"] = "Cave",
+                ["Width"] = "60", ["Height"] = "20",
+                ["FillRatio"] = "0.45", ["Iterations"] = "5",
+            },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.RenderOverworld,
+            Title = "Render Overworld",
+            Description = "Renders all overworld locations as dots on the ASCII display.",
+            Category = "Overworld",
+            InputPorts = [("Exec", PortDataType.Exec), ("Overworld", PortDataType.Overworld)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+
+        // ── Multiplayer ────────────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.HostSession,
+            Title = "Host Session",
+            Description = "Starts hosting a multiplayer session. Players can connect to this machine's IP on the configured port.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session)],
+            DefaultProperties = { ["SessionName"] = "My Game", ["Port"] = "7777", ["MaxPlayers"] = "4", ["PlayerName"] = "Host" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.JoinSession,
+            Title = "Join Session",
+            Description = "Connects to a hosted multiplayer session.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session)],
+            DefaultProperties = { ["Host"] = "127.0.0.1", ["Port"] = "7777", ["PlayerName"] = "Player" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.LeaveSession,
+            Title = "Leave Session",
+            Description = "Disconnects from or shuts down the current multiplayer session.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.BroadcastMessage,
+            Title = "Broadcast Message",
+            Description = "Sends a typed message to all players in the session.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session), ("Payload", PortDataType.String)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["MessageType"] = "chat" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SendMessageToPlayer,
+            Title = "Send Message To Player",
+            Description = "Sends a typed message to a specific player by name.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session), ("Payload", PortDataType.String), ("TargetPlayer", PortDataType.String)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["MessageType"] = "direct" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnMessageReceived,
+            Title = "On Message Received",
+            Description = "Fires when a network message of the specified type is received.",
+            Category = "Multiplayer",
+            OutputPorts = [("Exec", PortDataType.Exec), ("Sender", PortDataType.String), ("Payload", PortDataType.String)],
+            DefaultProperties = { ["MessageType"] = "chat" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetConnectedPlayers,
+            Title = "Get Connected Players",
+            Description = "Outputs the number of connected players and their names.",
+            Category = "Multiplayer",
+            InputPorts = [("Session", PortDataType.Session)],
+            OutputPorts = [("PlayerCount", PortDataType.Int), ("PlayerNames", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetLocalPlayerName,
+            Title = "Get Local Player Name",
+            Description = "Outputs the local player's display name.",
+            Category = "Multiplayer",
+            InputPorts = [("Session", PortDataType.Session)],
+            OutputPorts = [("Name", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.IsHost,
+            Title = "Is Host",
+            Description = "Outputs true when the local client is the session host.",
+            Category = "Multiplayer",
+            InputPorts = [("Session", PortDataType.Session)],
+            OutputPorts = [("Result", PortDataType.Bool)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SyncEntityState,
+            Title = "Sync Entity State",
+            Description = "Broadcasts an entity's position and glyph to all remote clients.",
+            Category = "Multiplayer",
+            InputPorts = [("Exec", PortDataType.Exec), ("Session", PortDataType.Session), ("Entity", PortDataType.Entity)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnEntityStateReceived,
+            Title = "On Entity State Received",
+            Description = "Fires when a remote entity state update is received.",
+            Category = "Multiplayer",
+            OutputPorts = [("Exec", PortDataType.Exec), ("EntityId", PortDataType.String), ("X", PortDataType.Int), ("Y", PortDataType.Int), ("Glyph", PortDataType.String)],
+        };
+
+        // ── Persistence / Save-Load ────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SaveGame,
+            Title = "Save Game",
+            Description = "Saves the full game state (overworld, entities, persistent values) to a named slot.",
+            Category = "Persistence",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Success", PortDataType.Bool)],
+            DefaultProperties = { ["Slot"] = "slot1" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.LoadGame,
+            Title = "Load Game",
+            Description = "Loads game state from a named save slot.",
+            Category = "Persistence",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("Success", PortDataType.Bool)],
+            DefaultProperties = { ["Slot"] = "slot1" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.DeleteSave,
+            Title = "Delete Save",
+            Description = "Deletes a save slot.",
+            Category = "Persistence",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Slot"] = "slot1" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SaveSlotExists,
+            Title = "Save Slot Exists",
+            Description = "Outputs true if the named save slot exists on disk.",
+            Category = "Persistence",
+            OutputPorts = [("Exists", PortDataType.Bool)],
+            DefaultProperties = { ["Slot"] = "slot1" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SetPersistentValue,
+            Title = "Set Persistent Value",
+            Description = "Writes a key-value pair to the global persistent store (survives save/load).",
+            Category = "Persistence",
+            InputPorts = [("Exec", PortDataType.Exec), ("Value", PortDataType.String)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Key"] = "myVar" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetPersistentValue,
+            Title = "Get Persistent Value",
+            Description = "Reads a value from the global persistent store.",
+            Category = "Persistence",
+            OutputPorts = [("Value", PortDataType.String)],
+            DefaultProperties = { ["Key"] = "myVar", ["Default"] = "" },
+        };
+
+        // ── Dialogue & Cutscenes ───────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.ShowDialogueLine,
+            Title = "Show Dialogue Line",
+            Description = "Displays a single speaker-attributed dialogue line.",
+            Category = "Dialogue",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Speaker"] = "NPC", ["Text"] = "Hello, adventurer!", ["X"] = "0", ["Y"] = "20" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.ShowDialogueChoice,
+            Title = "Show Dialogue Choice",
+            Description = "Presents a list of choices and outputs the selected index.",
+            Category = "Dialogue",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("SelectedIndex", PortDataType.Int)],
+            DefaultProperties = { ["Prompt"] = "What do you do?", ["Choices"] = "Attack\nFlee\nTalk" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnDialogueChoice,
+            Title = "On Dialogue Choice",
+            Description = "Fires when the player selects a specific dialogue option by index.",
+            Category = "Dialogue",
+            InputPorts = [("SelectedIndex", PortDataType.Int)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["ChoiceIndex"] = "0" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.StartCutscene,
+            Title = "Start Cutscene",
+            Description = "Begins a cutscene; pauses normal player input.",
+            Category = "Dialogue",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Name"] = "intro" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.EndCutscene,
+            Title = "End Cutscene",
+            Description = "Ends the active cutscene and restores player input.",
+            Category = "Dialogue",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.Wait,
+            Title = "Wait",
+            Description = "Pauses execution for N game ticks before continuing.",
+            Category = "Dialogue",
+            InputPorts = [("Exec", PortDataType.Exec), ("Ticks", PortDataType.Int)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Ticks"] = "30" },
+        };
+
+        // ── Factions & Relationships ───────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.CreateFaction,
+            Title = "Create Faction",
+            Description = "Creates a named faction in the game world.",
+            Category = "Factions",
+            InputPorts = [("Exec", PortDataType.Exec)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Name"] = "Bandits" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.AssignEntityFaction,
+            Title = "Assign Entity Faction",
+            Description = "Places an entity into a faction.",
+            Category = "Factions",
+            InputPorts = [("Exec", PortDataType.Exec), ("Entity", PortDataType.Entity)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["Faction"] = "Bandits" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.SetFactionRelation,
+            Title = "Set Faction Relation",
+            Description = "Sets the relationship between two factions (-100 hostile → 100 allied).",
+            Category = "Factions",
+            InputPorts = [("Exec", PortDataType.Exec), ("Value", PortDataType.Int)],
+            OutputPorts = [("Exec", PortDataType.Exec)],
+            DefaultProperties = { ["FactionA"] = "Heroes", ["FactionB"] = "Bandits" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetFactionRelation,
+            Title = "Get Faction Relation",
+            Description = "Outputs the relationship value between two factions.",
+            Category = "Factions",
+            OutputPorts = [("Value", PortDataType.Int)],
+            DefaultProperties = { ["FactionA"] = "Heroes", ["FactionB"] = "Bandits" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetEntityFaction,
+            Title = "Get Entity Faction",
+            Description = "Outputs the faction name an entity belongs to.",
+            Category = "Factions",
+            InputPorts = [("Entity", PortDataType.Entity)],
+            OutputPorts = [("Faction", PortDataType.String)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnRelationChanged,
+            Title = "On Relation Changed",
+            Description = "Fires when the relationship between two factions crosses a threshold.",
+            Category = "Factions",
+            OutputPorts = [("Exec", PortDataType.Exec), ("NewValue", PortDataType.Int)],
+            DefaultProperties = { ["FactionA"] = "Heroes", ["FactionB"] = "Bandits", ["Threshold"] = "0" },
+        };
+
+        // ── Day / Night & Time ─────────────────────────────────────────────────
+        yield return new NodeDefinition
+        {
+            Type = NodeType.AdvanceTime,
+            Title = "Advance Time",
+            Description = "Advances the in-game clock by N time units.",
+            Category = "Time",
+            InputPorts = [("Exec", PortDataType.Exec), ("Amount", PortDataType.Int)],
+            OutputPorts = [("Exec", PortDataType.Exec), ("NewHour", PortDataType.Int)],
+            DefaultProperties = { ["Amount"] = "1" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.GetTimeOfDay,
+            Title = "Get Time Of Day",
+            Description = "Outputs the current in-game hour (0–23).",
+            Category = "Time",
+            OutputPorts = [("Hour", PortDataType.Int)],
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.IsNight,
+            Title = "Is Night",
+            Description = "Outputs true when the in-game clock is in the configured night range.",
+            Category = "Time",
+            OutputPorts = [("Result", PortDataType.Bool)],
+            DefaultProperties = { ["NightStart"] = "20", ["NightEnd"] = "6" },
+        };
+        yield return new NodeDefinition
+        {
+            Type = NodeType.OnTimeOfDay,
+            Title = "On Time Of Day",
+            Description = "Fires once when the in-game clock reaches a specific hour.",
+            Category = "Time",
+            OutputPorts = [("Exec", PortDataType.Exec), ("Hour", PortDataType.Int)],
+            DefaultProperties = { ["Hour"] = "6" },
+        };
     }
 }

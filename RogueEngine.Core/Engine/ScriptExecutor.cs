@@ -16,6 +16,17 @@ namespace RogueEngine.Core.Engine;
 /// Execution is synchronous and depth-first.  Loop guards prevent runaway
 /// infinite loops by capping iterations at <see cref="MaxLoopIterations"/>.
 /// </para>
+///
+/// <para>
+/// The executor integrates three optional sub-systems:
+/// <list type="bullet">
+///   <item><see cref="Overworld"/> – overworld travel and location management</item>
+///   <item><see cref="NetworkSessionManager"/> – multiplayer sessions</item>
+///   <item><see cref="PersistenceManager"/> – save / load game state</item>
+/// </list>
+/// Pass instances of these to the constructor to enable their associated node
+/// types.  All three default to new independent instances.
+/// </para>
 /// </summary>
 public sealed class ScriptExecutor
 {
@@ -32,20 +43,45 @@ public sealed class ScriptExecutor
     private readonly List<Entity> _entities = [];
     private int _tickCount;
     private int _lastMenuSelection = 0;
+    private int _waitTicksRemaining;
+    private bool _inCutscene;
 
     // Tracks nodes currently in the execution call stack to detect recursion.
     private readonly HashSet<Guid> _inProgress = [];
+
+    // ── Sub-systems ────────────────────────────────────────────────────────────
+
+    /// <summary>Overworld and faction/time management.</summary>
+    public OverworldManager Overworld { get; }
+
+    /// <summary>Save / load persistence.</summary>
+    public PersistenceManager Persistence { get; }
+
+    /// <summary>
+    /// Active network session manager.
+    /// Assign a running <see cref="NetworkSessionManager"/> before executing
+    /// multiplayer nodes.
+    /// </summary>
+    public NetworkSessionManager? Network { get; set; }
 
     /// <summary>
     /// Creates a new executor for the given <paramref name="graph"/>.
     /// </summary>
     /// <param name="graph">The script graph to execute.</param>
     /// <param name="seed">Optional RNG seed for reproducible runs.</param>
-    public ScriptExecutor(ScriptGraph graph, int? seed = null)
+    /// <param name="overworld">Optional shared overworld manager.</param>
+    /// <param name="persistence">Optional shared persistence manager.</param>
+    public ScriptExecutor(
+        ScriptGraph graph,
+        int? seed = null,
+        OverworldManager? overworld = null,
+        PersistenceManager? persistence = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         _graph = graph;
         _rng = seed.HasValue ? new Random(seed.Value) : new Random();
+        Overworld = overworld ?? new OverworldManager();
+        Persistence = persistence ?? new PersistenceManager();
     }
 
     // ── Public API ─────────────────────────────────────────────────────────────
@@ -462,9 +498,403 @@ public sealed class ScriptExecutor
             case NodeType.OnKeyPress:
             case NodeType.OnTick:
             case NodeType.OnEntityEnterTile:
-                // Event nodes fire their chain when triggered externally via Tick()
-                // or dedicated trigger methods; nothing to do here.
+            case NodeType.OnEnterLocation:
+            case NodeType.OnLeaveLocation:
+            case NodeType.OnMessageReceived:
+            case NodeType.OnEntityStateReceived:
+            case NodeType.OnRelationChanged:
+            case NodeType.OnTimeOfDay:
+                // Event nodes fire their chain when triggered externally.
                 break;
+
+            // ── Overworld ──────────────────────────────────────────────────────
+            case NodeType.CreateOverworld:
+            {
+                var name = node.Properties.GetValueOrDefault("Name", "World");
+                var world = Overworld.CreateOverworld(name);
+                SetPortValue(node, "Overworld", world);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.AddLocation:
+            {
+                var world = ResolveAny(node, "Overworld") as Models.Overworld
+                    ?? Overworld.ActiveOverworld;
+                if (world is null) { _log.Add("[ERROR] AddLocation: no overworld."); break; }
+                var locName = node.Properties.GetValueOrDefault("Name", "Location");
+                var wx = int.TryParse(node.Properties.GetValueOrDefault("WorldX", "0"), out var wx2) ? wx2 : 0;
+                var wy = int.TryParse(node.Properties.GetValueOrDefault("WorldY", "0"), out var wy2) ? wy2 : 0;
+                var desc = node.Properties.GetValueOrDefault("Description", "");
+                var loc = Overworld.AddLocation(world, locName, wx, wy, desc);
+                SetPortValue(node, "Location", loc);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.ConnectLocations:
+            {
+                var from = ResolveAny(node, "From") as OverworldLocation;
+                var to   = ResolveAny(node, "To") as OverworldLocation;
+                if (from is null || to is null) { _log.Add("[ERROR] ConnectLocations: missing location."); break; }
+                var exit = node.Properties.GetValueOrDefault("ExitName", "North");
+                var rev  = node.Properties.GetValueOrDefault("ReverseExitName", "South");
+                Overworld.ConnectLocations(from, to, exit, rev);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.TravelToLocation:
+            {
+                var world = ResolveAny(node, "Overworld") as Models.Overworld
+                    ?? Overworld.ActiveOverworld;
+                var loc = ResolveAny(node, "Location") as OverworldLocation;
+                if (world is not null && loc is not null)
+                {
+                    world.TravelTo(loc.Id);
+                    _log.Add($"[TRAVEL] Arrived at '{loc.Name}'");
+                }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.TravelViaExit:
+            {
+                var world = ResolveAny(node, "Overworld") as Models.Overworld
+                    ?? Overworld.ActiveOverworld;
+                var exit = node.Properties.GetValueOrDefault("ExitName", "North");
+                if (world is not null)
+                {
+                    var dest = world.TravelViaExit(exit);
+                    SetPortValue(node, "Arrived", dest);
+                    _log.Add($"[TRAVEL] via '{exit}' → '{dest?.Name ?? "nowhere"}'");
+                }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.GetCurrentLocation:
+            {
+                var world = ResolveAny(node, "Overworld") as Models.Overworld
+                    ?? Overworld.ActiveOverworld;
+                var cur = world?.CurrentLocation;
+                SetPortValue(node, "Location", cur);
+                SetPortValue(node, "Name", cur?.Name ?? string.Empty);
+                break;
+            }
+            case NodeType.GetLocationData:
+            {
+                var loc = ResolveAny(node, "Location") as OverworldLocation
+                    ?? Overworld.ActiveOverworld?.CurrentLocation;
+                var key = node.Properties.GetValueOrDefault("Key", "key");
+                var val = loc?.PersistentData.GetValueOrDefault(key, string.Empty) ?? string.Empty;
+                SetPortValue(node, "Value", val);
+                break;
+            }
+            case NodeType.SetLocationData:
+            {
+                var loc = ResolveAny(node, "Location") as OverworldLocation
+                    ?? Overworld.ActiveOverworld?.CurrentLocation;
+                var key = node.Properties.GetValueOrDefault("Key", "key");
+                var val = ResolveString(node, "Value");
+                if (loc is not null) loc.PersistentData[key] = val;
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.GenerateLocation:
+            {
+                var loc = ResolveAny(node, "Location") as OverworldLocation;
+                if (loc is null) { _log.Add("[ERROR] GenerateLocation: no location."); break; }
+                var algo  = node.Properties.GetValueOrDefault("Algorithm", "Cave");
+                var gw    = int.TryParse(node.Properties.GetValueOrDefault("Width", "60"),  out var gwv) ? gwv : 60;
+                var gh    = int.TryParse(node.Properties.GetValueOrDefault("Height", "20"), out var ghv) ? ghv : 20;
+                var map   = Overworld.GenerateLocationMap(loc, algo, gw, gh);
+                _activeMap = map;
+                SetPortValue(node, "Map", map);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.RenderOverworld:
+            {
+                var world = ResolveAny(node, "Overworld") as Models.Overworld
+                    ?? Overworld.ActiveOverworld;
+                if (world is not null && _activeMap is not null)
+                    Overworld.RenderOverworld(world, _activeMap, _activeMap.Width, _activeMap.Height);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            // ── Multiplayer ────────────────────────────────────────────────────
+            case NodeType.HostSession:
+            {
+                var mgr = Network ?? new NetworkSessionManager();
+                Network = mgr;
+                var sName  = node.Properties.GetValueOrDefault("SessionName", "My Game");
+                var pName  = node.Properties.GetValueOrDefault("PlayerName", "Host");
+                var port   = int.TryParse(node.Properties.GetValueOrDefault("Port", "7777"), out var pv) ? pv : 7777;
+                var maxP   = int.TryParse(node.Properties.GetValueOrDefault("MaxPlayers", "4"), out var mpv) ? mpv : 4;
+                // Fire-and-forget; script continues immediately.
+                _ = mgr.HostAsync(sName, pName, port, maxP);
+                SetPortValue(node, "Session", mgr.Session);
+                _log.Add($"[NET] Hosting '{sName}' on :{port}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.JoinSession:
+            {
+                var mgr = Network ?? new NetworkSessionManager();
+                Network = mgr;
+                var host  = node.Properties.GetValueOrDefault("Host", "127.0.0.1");
+                var pName = node.Properties.GetValueOrDefault("PlayerName", "Player");
+                var port  = int.TryParse(node.Properties.GetValueOrDefault("Port", "7777"), out var pv) ? pv : 7777;
+                _ = mgr.JoinAsync(host, pName, port);
+                SetPortValue(node, "Session", mgr.Session);
+                _log.Add($"[NET] Joining {host}:{port}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.LeaveSession:
+            {
+                if (Network is not null) { _ = Network.DisconnectAsync(); }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.BroadcastMessage:
+            {
+                var payload = ResolveString(node, "Payload");
+                var msgType = node.Properties.GetValueOrDefault("MessageType", "chat");
+                if (Network is not null)
+                    _ = Network.BroadcastAsync(new NetworkMessage { MessageType = msgType, Payload = payload });
+                _log.Add($"[NET] Broadcast [{msgType}]: {payload}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SendMessageToPlayer:
+            {
+                var payload = ResolveString(node, "Payload");
+                var msgType = node.Properties.GetValueOrDefault("MessageType", "direct");
+                var target  = ResolveString(node, "TargetPlayer");
+                _log.Add($"[NET] → {target} [{msgType}]: {payload}");
+                if (Network is not null)
+                    _ = Network.BroadcastAsync(new NetworkMessage
+                    {
+                        MessageType = msgType,
+                        Payload = payload,
+                        // Routing by name: host filters on its end.
+                    });
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.GetConnectedPlayers:
+            {
+                var session = ResolveAny(node, "Session") as NetworkSession
+                    ?? Network?.Session;
+                var count = session?.PlayerCount ?? 0;
+                var names = session is not null
+                    ? string.Join("\n", session.Players.Select(p => p.Name))
+                    : string.Empty;
+                SetPortValue(node, "PlayerCount", count);
+                SetPortValue(node, "PlayerNames", names);
+                break;
+            }
+            case NodeType.GetLocalPlayerName:
+            {
+                var session = ResolveAny(node, "Session") as NetworkSession
+                    ?? Network?.Session;
+                SetPortValue(node, "Name", session?.LocalPlayer?.Name ?? string.Empty);
+                break;
+            }
+            case NodeType.IsHost:
+            {
+                var session = ResolveAny(node, "Session") as NetworkSession
+                    ?? Network?.Session;
+                SetPortValue(node, "Result", session?.IsHost ?? false);
+                break;
+            }
+            case NodeType.SyncEntityState:
+            {
+                var ent = ResolveAny(node, "Entity") as Entity;
+                if (ent is not null && Network is not null)
+                    _ = Network.BroadcastAsync(new NetworkMessage
+                    {
+                        MessageType = "entity-state",
+                        Payload = $"{ent.Id},{ent.X},{ent.Y},{ent.Glyph}",
+                    });
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            // ── Persistence ────────────────────────────────────────────────────
+            case NodeType.SaveGame:
+            {
+                var slot    = node.Properties.GetValueOrDefault("Slot", "slot1");
+                var success = Persistence.Save(slot,
+                    Overworld.ActiveOverworld, _entities,
+                    Overworld.GameHour);
+                SetPortValue(node, "Success", success);
+                _log.Add($"[SAVE] Slot '{slot}': {(success ? "OK" : "FAILED")}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.LoadGame:
+            {
+                var slot   = node.Properties.GetValueOrDefault("Slot", "slot1");
+                var result = Persistence.Load(slot, Overworld.ActiveOverworld);
+                var ok     = result is not null;
+                if (ok)
+                {
+                    _entities.Clear();
+                    _entities.AddRange(result!.Entities);
+                }
+                SetPortValue(node, "Success", ok);
+                _log.Add($"[LOAD] Slot '{slot}': {(ok ? "OK" : "NOT FOUND")}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.DeleteSave:
+            {
+                var slot = node.Properties.GetValueOrDefault("Slot", "slot1");
+                Persistence.DeleteSlot(slot);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SaveSlotExists:
+            {
+                var slot = node.Properties.GetValueOrDefault("Slot", "slot1");
+                SetPortValue(node, "Exists", Persistence.SlotExists(slot));
+                break;
+            }
+            case NodeType.SetPersistentValue:
+            {
+                var key = node.Properties.GetValueOrDefault("Key", "key");
+                var val = ResolveString(node, "Value");
+                Persistence.SetValue(key, val);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.GetPersistentValue:
+            {
+                var key = node.Properties.GetValueOrDefault("Key", "key");
+                var def = node.Properties.GetValueOrDefault("Default", "");
+                SetPortValue(node, "Value", Persistence.GetValue(key, def));
+                break;
+            }
+
+            // ── Dialogue & Cutscenes ───────────────────────────────────────────
+            case NodeType.ShowDialogueLine:
+            {
+                var speaker = node.Properties.GetValueOrDefault("Speaker", "NPC");
+                var text    = node.Properties.GetValueOrDefault("Text", "");
+                var dx      = int.TryParse(node.Properties.GetValueOrDefault("X", "0"),  out var dxv) ? dxv : 0;
+                var dy      = int.TryParse(node.Properties.GetValueOrDefault("Y", "20"), out var dyv) ? dyv : 20;
+                _log.Add($"[DIALOGUE] {speaker}: {text}");
+                if (_activeMap is not null)
+                {
+                    var line = $"{speaker}: {text}";
+                    for (var i = 0; i < line.Length && _activeMap.IsInBounds(dx + i, dy); i++)
+                        _activeMap[dx + i, dy] = new AsciiCell
+                        {
+                            Character = line[i],
+                            ForegroundColor = 0xFFFF88,
+                            BackgroundColor = 0x000033,
+                        };
+                }
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.ShowDialogueChoice:
+            {
+                var prompt  = node.Properties.GetValueOrDefault("Prompt", "Choose:");
+                var choices = node.Properties.GetValueOrDefault("Choices", "").Split('\n');
+                _log.Add($"[CHOICE] {prompt}: {string.Join(", ", choices)}");
+                SetPortValue(node, "SelectedIndex", _lastMenuSelection);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.OnDialogueChoice:
+            {
+                var target = int.TryParse(
+                    node.Properties.GetValueOrDefault("ChoiceIndex", "0"), out var cv) ? cv : 0;
+                if (ResolveInt(node, "SelectedIndex") == target)
+                    ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.StartCutscene:
+                _inCutscene = true;
+                _log.Add($"[CUTSCENE] Start: {node.Properties.GetValueOrDefault("Name", "")}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            case NodeType.EndCutscene:
+                _inCutscene = false;
+                _log.Add("[CUTSCENE] End");
+                ExecuteExecChain(node, "Exec");
+                break;
+            case NodeType.Wait:
+            {
+                var ticks = ResolveInt(node, "Ticks");
+                _waitTicksRemaining = ticks;
+                _log.Add($"[WAIT] {ticks} ticks");
+                // In sync execution we skip immediately; async tick-based wait is
+                // handled in Tick() via _waitTicksRemaining.
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+
+            // ── Factions ──────────────────────────────────────────────────────
+            case NodeType.CreateFaction:
+                _log.Add($"[FACTION] Created: {node.Properties.GetValueOrDefault("Name", "")}");
+                ExecuteExecChain(node, "Exec");
+                break;
+            case NodeType.AssignEntityFaction:
+            {
+                var ent     = ResolveAny(node, "Entity") as Entity;
+                var faction = node.Properties.GetValueOrDefault("Faction", "");
+                if (ent is not null) Overworld.AssignEntityFaction(ent.Id.ToString(), faction);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.SetFactionRelation:
+            {
+                var fa  = node.Properties.GetValueOrDefault("FactionA", "A");
+                var fb  = node.Properties.GetValueOrDefault("FactionB", "B");
+                var val = ResolveInt(node, "Value");
+                Overworld.SetFactionRelation(fa, fb, val);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.GetFactionRelation:
+            {
+                var fa = node.Properties.GetValueOrDefault("FactionA", "A");
+                var fb = node.Properties.GetValueOrDefault("FactionB", "B");
+                SetPortValue(node, "Value", Overworld.GetFactionRelation(fa, fb));
+                break;
+            }
+            case NodeType.GetEntityFaction:
+            {
+                var ent = ResolveAny(node, "Entity") as Entity;
+                var faction = ent is not null
+                    ? Overworld.GetEntityFaction(ent.Id.ToString())
+                    : string.Empty;
+                SetPortValue(node, "Faction", faction);
+                break;
+            }
+
+            // ── Time ──────────────────────────────────────────────────────────
+            case NodeType.AdvanceTime:
+            {
+                var amount  = ResolveInt(node, "Amount");
+                if (amount == 0)
+                    int.TryParse(node.Properties.GetValueOrDefault("Amount", "1"), out amount);
+                var newHour = Overworld.AdvanceTime(amount);
+                SetPortValue(node, "NewHour", newHour);
+                ExecuteExecChain(node, "Exec");
+                break;
+            }
+            case NodeType.GetTimeOfDay:
+                SetPortValue(node, "Hour", Overworld.GameHour);
+                break;
+            case NodeType.IsNight:
+            {
+                var ns = int.TryParse(node.Properties.GetValueOrDefault("NightStart", "20"), out var nsv) ? nsv : 20;
+                var ne = int.TryParse(node.Properties.GetValueOrDefault("NightEnd",   "6"),  out var nev) ? nev : 6;
+                SetPortValue(node, "Result", Overworld.IsNight(ns, ne));
+                break;
+            }
 
             default:
                 _log.Add($"[WARN] Unhandled node type: {node.Type}");
